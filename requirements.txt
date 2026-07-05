@@ -1,0 +1,8 @@
+# Faithful runtime dependencies
+# ------------------------------
+# The core pipeline and the bundled example run on the Python standard library
+# ALONE. There is nothing to install to run `python examples/run_example.py`.
+#
+# The only listed dependency is the test runner. Install it if you want to run
+# the unit tests with `pytest` (the tests also run without it: see tests/).
+pytest>=7.4

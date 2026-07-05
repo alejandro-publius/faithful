@@ -1,0 +1,7 @@
+Background: The gut microbiome has been implicated in host metabolic and immune regulation, but the causal role of individual species remains poorly understood. Here we investigated whether the commensal bacterium Roseburia intestinalis influences colonic inflammation.
+
+Methods: We colonized germ-free mice (n = 24) with R. intestinalis and measured markers of intestinal inflammation over eight weeks, comparing them to germ-free controls.
+
+Results: Mice colonized with R. intestinalis showed a 32% reduction in colonic interleukin-6 relative to controls (p = 0.03). The reduction was associated with increased production of the short-chain fatty acid butyrate. There was no significant change in body weight between the two groups.
+
+Conclusions: In this mouse model, R. intestinalis was associated with reduced colonic inflammation, possibly through butyrate signaling. These findings are preliminary and have not been validated in humans; larger studies are needed before any clinical relevance can be established.

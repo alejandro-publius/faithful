@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Faithful — side-by-side claim viewer</title>
+<style>
+  :root {
+    --bg: #0f1420;
+    --panel: #171d2b;
+    --panel-2: #1e2536;
+    --text: #e6e9ef;
+    --muted: #97a1b5;
+    --border: #2a3346;
+
+    --supported: #2f9e5f;
+    --supported-bg: rgba(47, 158, 95, 0.16);
+    --overstated: #d98a1f;
+    --overstated-bg: rgba(217, 138, 31, 0.16);
+    --unsupported: #7a879e;
+    --unsupported-bg: rgba(122, 135, 158, 0.16);
+    --contradicted: #d6493b;
+    --contradicted-bg: rgba(214, 73, 59, 0.16);
+    --dropped: #9b6dd6;
+    --dropped-bg: rgba(155, 109, 214, 0.14);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.55;
+  }
+  header {
+    padding: 24px 28px 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  header h1 { margin: 0; font-size: 22px; letter-spacing: 0.2px; }
+  header p { margin: 6px 0 0; color: var(--muted); max-width: 720px; font-size: 14px; }
+  .note {
+    margin: 12px 28px 0;
+    padding: 10px 14px;
+    background: var(--panel-2);
+    border: 1px dashed var(--border);
+    border-radius: 8px;
+    color: var(--muted);
+    font-size: 12.5px;
+    max-width: 900px;
+  }
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px;
+    padding: 16px 28px 4px;
+    font-size: 13px;
+  }
+  .legend .item { display: flex; align-items: center; gap: 7px; }
+  .swatch {
+    width: 14px; height: 14px; border-radius: 3px; display: inline-block;
+    border: 1px solid rgba(255,255,255,0.15);
+  }
+  .swatch.supported { background: var(--supported); }
+  .swatch.overstated { background: var(--overstated); }
+  .swatch.unsupported { background: var(--unsupported); }
+  .swatch.contradicted { background: var(--contradicted); }
+  .swatch.dropped { background: var(--dropped-bg); border: 1px dashed var(--dropped); }
+
+  .cols {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 18px;
+    padding: 18px 28px 28px;
+    align-items: start;
+  }
+  @media (max-width: 820px) { .cols { grid-template-columns: 1fr; } }
+
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  .panel h2 {
+    margin: 0;
+    padding: 14px 18px;
+    font-size: 14px;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+    color: var(--muted);
+    border-bottom: 1px solid var(--border);
+    background: var(--panel-2);
+  }
+  .panel .body { padding: 16px 18px; }
+  .panel .body p { margin: 0 0 12px; }
+
+  .claim {
+    border-radius: 5px;
+    padding: 1px 4px;
+    cursor: pointer;
+    transition: box-shadow 0.12s ease, outline-color 0.12s ease;
+    outline: 2px solid transparent;
+    text-decoration-thickness: 1px;
+  }
+  .claim.supported   { background: var(--supported-bg);   box-shadow: inset 0 -2px 0 var(--supported); }
+  .claim.overstated  { background: var(--overstated-bg);  box-shadow: inset 0 -2px 0 var(--overstated); }
+  .claim.unsupported { background: var(--unsupported-bg); box-shadow: inset 0 -2px 0 var(--unsupported); }
+  .claim.contradicted{ background: var(--contradicted-bg);box-shadow: inset 0 -2px 0 var(--contradicted); }
+
+  .source-claim { border-radius: 5px; padding: 1px 4px; }
+  .source-claim.dropped {
+    background: var(--dropped-bg);
+    outline: 1px dashed var(--dropped);
+    color: var(--text);
+  }
+  .source-claim.highlight { outline: 2px solid #ffffff; background: rgba(255,255,255,0.08); }
+  .claim.active { outline-color: #ffffff; }
+
+  .tag {
+    display: inline-block;
+    font-size: 10.5px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    padding: 1px 6px;
+    border-radius: 999px;
+    margin-left: 6px;
+    vertical-align: middle;
+  }
+  .tag.dropped { color: var(--dropped); border: 1px solid var(--dropped); }
+
+  #detail {
+    margin: 0 28px 32px;
+    padding: 16px 18px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    min-height: 68px;
+  }
+  #detail .label {
+    display: inline-block; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.5px; font-size: 12px; padding: 2px 8px; border-radius: 6px;
+  }
+  #detail .label.supported   { background: var(--supported-bg);   color: var(--supported); }
+  #detail .label.overstated  { background: var(--overstated-bg);  color: var(--overstated); }
+  #detail .label.unsupported { background: var(--unsupported-bg); color: var(--unsupported); }
+  #detail .label.contradicted{ background: var(--contradicted-bg);color: var(--contradicted); }
+  #detail .row { margin-top: 10px; font-size: 14px; }
+  #detail .k { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.4px; }
+  #detail .hint { color: var(--muted); font-size: 13px; }
+  footer { color: var(--muted); font-size: 12px; padding: 0 28px 28px; max-width: 900px; }
+  a { color: #8ab4ff; }
+</style>
+</head>
+<body>
+  <header>
+    <h1>Faithful — side-by-side claim viewer</h1>
+    <p>
+      Source paper on the left, AI summary on the right. Each summary claim is
+      color-coded by how it holds up against the source; dropped source caveats
+      are outlined on the left. Click any highlighted claim to see its evidence.
+    </p>
+  </header>
+
+  <div class="note">
+    Prototype preview. The highlights below are <strong>hard-coded sample data</strong>
+    from the bundled example (<code>examples/</code>), produced by heuristic
+    placeholders (lexical overlap + rules), not a validated model. No accuracy is
+    claimed. This file opens directly in a browser with no build step or network.
+  </div>
+
+  <div class="legend">
+    <div class="item"><span class="swatch supported"></span> supported</div>
+    <div class="item"><span class="swatch overstated"></span> overstated</div>
+    <div class="item"><span class="swatch unsupported"></span> unsupported (added)</div>
+    <div class="item"><span class="swatch contradicted"></span> contradicted</div>
+    <div class="item"><span class="swatch dropped"></span> dropped caveat</div>
+  </div>
+
+  <div class="cols">
+    <section class="panel">
+      <h2>Source paper (mock abstract)</h2>
+      <div class="body" id="source"></div>
+    </section>
+    <section class="panel">
+      <h2>AI summary</h2>
+      <div class="body" id="summary"></div>
+    </section>
+  </div>
+
+  <div id="detail">
+    <span class="hint">Click a highlighted summary claim to see its aligned source passage and why it was flagged.</span>
+  </div>
+
+  <footer>
+    Faithful is an early open-source prototype (MIT). This viewer is illustrative;
+    the pipeline that produces these labels lives in <code>faithful/</code> and runs
+    with <code>python examples/run_example.py</code>.
+  </footer>
+
+<script>
+// --- Hard-coded sample data: mirrors the output of examples/run_example.py ---
+// Source paragraphs, split into claims. Some source claims are aligned to a
+// summary claim (by id); caveats the summary dropped are marked dropped:true.
+const SOURCE = [
+  { paragraph: "Background", claims: [
+    { id: "p0", text: "The gut microbiome has been implicated in host metabolic and immune regulation, but the causal role of individual species remains poorly understood.", dropped: true, kind: "context" },
+    { id: "p1", text: "Here we investigated whether the commensal bacterium Roseburia intestinalis influences colonic inflammation." },
+  ]},
+  { paragraph: "Methods", claims: [
+    { id: "p2", text: "We colonized germ-free mice (n = 24) with R. intestinalis and measured markers of intestinal inflammation over eight weeks, comparing them to germ-free controls." },
+  ]},
+  { paragraph: "Results", claims: [
+    { id: "p3", text: "Mice colonized with R. intestinalis showed a 32% reduction in colonic interleukin-6 relative to controls (p = 0.03)." },
+    { id: "p4", text: "The reduction was associated with increased production of the short-chain fatty acid butyrate." },
+    { id: "p5", text: "There was no significant change in body weight between the two groups." },
+  ]},
+  { paragraph: "Conclusions", claims: [
+    { id: "p6", text: "In this mouse model, R. intestinalis was associated with reduced colonic inflammation, possibly through butyrate signaling." },
+    { id: "p7", text: "These findings are preliminary and have not been validated in humans.", dropped: true, kind: "caveat" },
+    { id: "p8", text: "Larger studies are needed before any clinical relevance can be established.", dropped: true, kind: "caveat" },
+  ]},
+];
+
+const SUMMARY = [
+  {
+    id: "s0", label: "supported", sourceId: "p6", score: 0.46,
+    text: "In a mouse study, Roseburia intestinalis was associated with reduced colonic inflammation.",
+    rationale: "Aligned to a source passage with no strength or negation mismatch."
+  },
+  {
+    id: "s1", label: "overstated", sourceId: "p4", score: 0.31,
+    text: "The bacterium cures intestinal inflammation by producing the short-chain fatty acid butyrate.",
+    rationale: "Summary asserts 'cures', a stronger claim than the source, which is hedged ('was associated with')."
+  },
+  {
+    id: "s2", label: "contradicted", sourceId: "p5", score: 0.28,
+    text: "Colonized mice also showed a significant increase in body weight compared to controls.",
+    rationale: "Negation mismatch on 'weight': the source reports no significant change while the summary asserts an increase."
+  },
+  {
+    id: "s3", label: "unsupported", sourceId: null, score: 0.05,
+    text: "These results confirm that R. intestinalis is a proven probiotic treatment for patients with inflammatory bowel disease.",
+    rationale: "No source passage scored above the alignment threshold; treated as an added claim about humans the paper never makes."
+  },
+];
+
+const LABEL_TEXT = {
+  supported: "Supported",
+  overstated: "Overstated",
+  unsupported: "Unsupported (added)",
+  contradicted: "Contradicted",
+};
+
+// --- Render source ---
+const sourceEl = document.getElementById("source");
+SOURCE.forEach(function (para) {
+  const p = document.createElement("p");
+  const label = document.createElement("span");
+  label.className = "k";
+  label.textContent = para.paragraph + ": ";
+  p.appendChild(label);
+  para.claims.forEach(function (c, i) {
+    const span = document.createElement("span");
+    span.className = "source-claim" + (c.dropped ? " dropped" : "");
+    span.id = "src-" + c.id;
+    span.textContent = c.text;
+    p.appendChild(span);
+    if (c.dropped) {
+      const tag = document.createElement("span");
+      tag.className = "tag dropped";
+      tag.textContent = c.kind === "caveat" ? "dropped caveat" : "dropped";
+      p.appendChild(document.createTextNode(" "));
+      p.appendChild(tag);
+    }
+    if (i < para.claims.length - 1) p.appendChild(document.createTextNode(" "));
+  });
+  sourceEl.appendChild(p);
+});
+
+// --- Render summary ---
+const summaryEl = document.getElementById("summary");
+const paragraph = document.createElement("p");
+SUMMARY.forEach(function (c, i) {
+  const span = document.createElement("span");
+  span.className = "claim " + c.label;
+  span.id = "sum-" + c.id;
+  span.textContent = c.text;
+  span.addEventListener("click", function () { select(c); });
+  paragraph.appendChild(span);
+  if (i < SUMMARY.length - 1) paragraph.appendChild(document.createTextNode(" "));
+});
+summaryEl.appendChild(paragraph);
+
+// --- Interaction ---
+const detailEl = document.getElementById("detail");
+function clearHighlights() {
+  document.querySelectorAll(".source-claim.highlight").forEach(function (el) {
+    el.classList.remove("highlight");
+  });
+  document.querySelectorAll(".claim.active").forEach(function (el) {
+    el.classList.remove("active");
+  });
+}
+function select(c) {
+  clearHighlights();
+  document.getElementById("sum-" + c.id).classList.add("active");
+  const src = SUMMARY_SOURCE_LOOKUP(c.sourceId);
+  let evidenceHtml;
+  if (c.sourceId) {
+    const el = document.getElementById("src-" + c.sourceId);
+    if (el) el.classList.add("highlight");
+    evidenceHtml = '<div class="row"><span class="k">Aligned source passage (overlap ' +
+      c.score.toFixed(2) + ')</span><br>' + escapeHtml(src) + '</div>';
+  } else {
+    evidenceHtml = '<div class="row"><span class="k">Aligned source passage</span><br>' +
+      '<span class="hint">None found above the alignment threshold (best overlap ' +
+      c.score.toFixed(2) + ').</span></div>';
+  }
+  detailEl.innerHTML =
+    '<span class="label ' + c.label + '">' + LABEL_TEXT[c.label] + '</span>' +
+    '<div class="row"><span class="k">Summary claim</span><br>' + escapeHtml(c.text) + '</div>' +
+    evidenceHtml +
+    '<div class="row"><span class="k">Why</span><br>' + escapeHtml(c.rationale) + '</div>';
+}
+function SUMMARY_SOURCE_LOOKUP(id) {
+  if (!id) return null;
+  let found = null;
+  SOURCE.forEach(function (para) {
+    para.claims.forEach(function (c) { if (c.id === id) found = c.text; });
+  });
+  return found;
+}
+function escapeHtml(s) {
+  return s.replace(/[&<>"']/g, function (ch) {
+    return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch];
+  });
+}
+</script>
+</body>
+</html>
