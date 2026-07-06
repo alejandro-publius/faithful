@@ -83,6 +83,13 @@ def main() -> None:
     for label in ("supported", "unsupported", "overstated", "contradicted"):
         print(f"  {label:<13}: {counts.get(label, 0)}")
     print(f"  caveats dropped: {len(dropped)}")
+    if result.results:
+        align_methods = sorted({r.align_method for r in result.results})
+        classify_methods = sorted({r.classify_method for r in result.results})
+        print(
+            f"  methods      : align={', '.join(align_methods)}"
+            f" | classify={', '.join(classify_methods)}"
+        )
     print(rule)
     print(
         "Note: labels come from heuristic placeholders (lexical overlap + rules), "

@@ -72,7 +72,8 @@ git clone <your-fork-url> faithful
 cd faithful
 
 # 2. Create and activate a virtual environment
-python -m venv .venv
+#    (use `python3` if `python` is not on your PATH, e.g. on macOS)
+python3 -m venv .venv
 source .venv/bin/activate        # Windows: .venv\Scripts\activate
 
 # 3. Install (only needed for the test runner; the example needs nothing)
@@ -81,6 +82,9 @@ pip install -r requirements.txt
 # 4. Run the example
 python examples/run_example.py
 ```
+
+No virtualenv? The example has no dependencies, so you can also just run
+`python3 examples/run_example.py` from the repo root.
 
 ### Expected output
 
@@ -121,7 +125,23 @@ DROPPED CAVEATS (source caveats no summary claim covered)
 [-] These findings are preliminary and have not been validated in humans
 
 [-] larger studies are needed before any clinical relevance can be established.
-...
+
+OTHER UNCOVERED SOURCE POINTS
+------------------------------------------------------------------------
+[-] The gut microbiome has been implicated in host metabolic and immune regulation, but the causal role of individual species remains poorly understood.
+
+SUMMARY
+------------------------------------------------------------------------
+  supported    : 1
+  unsupported  : 1
+  overstated   : 1
+  contradicted : 1
+  caveats dropped: 2
+  methods      : align=lexical-overlap | classify=rule-based
+========================================================================
+Note: labels come from heuristic placeholders (lexical overlap + rules), not a
+validated model. See the README for what is implemented vs. planned.
+========================================================================
 ```
 
 (The mock abstract and summary are fictional and written for this repo — they do

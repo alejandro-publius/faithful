@@ -25,6 +25,13 @@ from .extract import Claim, extract_claims
 
 __all__ = ["ClaimResult", "Omission", "PipelineResult", "run_pipeline"]
 
+# Default score below which a source claim is treated as omitted. This is a
+# SEPARATE knob from the alignment threshold on purpose: omission detection uses
+# the unweighted overlap_score (plain Jaccard), whereas align_claim uses the
+# IDF-weighted score, so the two operate on different scales and must be tuned
+# independently.
+OMISSION_THRESHOLD = 0.12
+
 # Cue words that mark a source sentence as a caveat / limitation worth not
 # dropping. Used only to prioritise which omissions to surface first.
 _CAVEAT_CUES = {
@@ -40,13 +47,21 @@ ClassifyFn = Callable[[Claim, Alignment], Classification]
 
 @dataclass
 class ClaimResult:
-    """The full verdict for one summary claim."""
+    """The full verdict for one summary claim.
+
+    ``align_method`` and ``classify_method`` record which stage-2/stage-3
+    backend produced this result (e.g. ``"lexical-overlap"`` / ``"rule-based"``
+    for the heuristics, ``"llm"`` once a model backend is wired in), so callers
+    who swap in a custom ``align_fn``/``classify_fn`` can see the provenance.
+    """
 
     claim: Claim
     label: str
     rationale: str
     evidence: Claim | None
     alignment_score: float
+    align_method: str = "lexical-overlap"
+    classify_method: str = "rule-based"
 
 
 @dataclass
@@ -89,7 +104,11 @@ def _find_omissions(
     summary_claims: list[Claim],
     threshold: float,
 ) -> list[Omission]:
-    """Flag source claims that no summary claim aligns to above ``threshold``."""
+    """Flag source claims that no summary claim covers above ``threshold``.
+
+    Note: this uses the unweighted :func:`overlap_score`, so ``threshold`` here
+    is on a different scale than the alignment threshold in :func:`align_claim`.
+    """
     omissions: list[Omission] = []
     for source in paper_claims:
         best = max(
@@ -113,6 +132,7 @@ def run_pipeline(
     align_fn: AlignFn = align_claim,
     classify_fn: ClassifyFn = classify_claim,
     threshold: float = DEFAULT_THRESHOLD,
+    omission_threshold: float = OMISSION_THRESHOLD,
 ) -> PipelineResult:
     """Run extraction, alignment, and classification end to end.
 
@@ -123,8 +143,11 @@ def run_pipeline(
             pass :func:`faithful.align.align_claim_llm` once implemented.
         classify_fn: Stage-3 function. Defaults to the rule-based placeholder;
             pass :func:`faithful.classify.classify_claim_llm` once implemented.
-        threshold: Alignment score below which a claim is treated as unsupported
-            and a source claim is treated as omitted.
+        threshold: Alignment score (IDF-weighted) below which a summary claim is
+            treated as unsupported.
+        omission_threshold: Coverage score (unweighted overlap) below which a
+            source claim is treated as omitted. Kept separate from ``threshold``
+            because the two scores are on different scales.
 
     Returns:
         A :class:`PipelineResult` with per-claim verdicts and detected omissions.
@@ -146,11 +169,13 @@ def run_pipeline(
                 rationale=classification.rationale,
                 evidence=classification.evidence,
                 alignment_score=alignment.score,
+                align_method=alignment.method,
+                classify_method=classification.method,
             )
         )
 
     # Source-side pass — detect dropped points (omissions).
-    omissions = _find_omissions(paper_claims, summary_claims, threshold)
+    omissions = _find_omissions(paper_claims, summary_claims, omission_threshold)
 
     return PipelineResult(
         paper_claims=paper_claims,

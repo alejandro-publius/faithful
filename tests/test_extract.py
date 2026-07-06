@@ -60,6 +60,42 @@ def test_filters_short_fragments():
     assert len(claims) == 1
 
 
+def test_does_not_split_on_multiword_abbreviation():
+    # "et al." and "e.g." must not end a sentence.
+    assert len([s for s, _, _ in split_sentences(
+        "Smith et al. reported reduced inflammation in the treated mice.")]) == 1
+    assert len([s for s, _, _ in split_sentences(
+        "Several taxa, e.g. Roseburia, were enriched in the treated group.")]) == 1
+
+
+def test_splits_after_closing_quote():
+    # The period before a closing quote still ends the sentence.
+    sentences = [s for s, _, _ in split_sentences(
+        'The authors wrote "it works." Then they moved on.')]
+    assert len(sentences) == 2
+    assert sentences[0].endswith('"')
+
+
+def test_handles_ellipsis_and_other_terminators():
+    assert len([s for s, _, _ in split_sentences(
+        "The results were unclear... We repeated the experiment twice.")]) == 2
+    assert len([s for s, _, _ in split_sentences(
+        "Does the microbe help? We think it truly does!")]) == 2
+
+
+def test_no_space_after_period_is_not_split():
+    # A missing space after a period is a known limitation: the segmenter keeps
+    # it as one sentence rather than guessing a boundary.
+    sentences = [s for s, _, _ in split_sentences(
+        "The mice recovered.Another cohort was studied here.")]
+    assert len(sentences) == 1
+
+
+def test_empty_and_whitespace_input():
+    assert split_sentences("") == []
+    assert extract_claims("   \n  ", origin="paper") == []
+
+
 def test_claim_metadata_is_populated():
     text = "The gut microbiome influences host metabolic regulation in mice."
     claims = extract_claims(text, origin="summary")
