@@ -41,7 +41,7 @@ and labeled.
 | Stage | What it does | Status in this repo |
 | ----- | ------------ | ------------------- |
 | **1. Extraction** | Split the source paper and the AI summary into discrete factual claims. | **Implemented.** Dependency-free, abbreviation- and decimal-aware sentence/claim segmentation ([`faithful/extract.py`](faithful/extract.py)). |
-| **2. Alignment** | For each summary claim, find the source passage that supports it — or determine there isn't one. | **Heuristic baseline.** IDF-weighted lexical overlap ([`faithful/align.py`](faithful/align.py)). LLM-backed version is a marked extension point. |
+| **2. Alignment** | For each summary claim, find the source passage that supports it — or determine there isn't one. | **Heuristic baseline + optional model backend.** IDF-weighted lexical overlap by default ([`faithful/align.py`](faithful/align.py)); an optional Cohere Rerank backend ([`faithful/cohere_backend.py`](faithful/cohere_backend.py)) drops in for real cross-encoder scoring. |
 | **3. Classification** | Label each summary claim `supported`, `unsupported`, `overstated`, or `contradicted`, using the aligned passage as evidence. | **Heuristic baseline.** Transparent rule-based placeholder ([`faithful/classify.py`](faithful/classify.py)). LLM-backed version is a marked extension point. |
 
 A source-side pass also flags **omissions** — source claims (especially caveats
@@ -54,12 +54,46 @@ omissions cover what a summary can get wrong: what it **adds** (`unsupported`),
 
 - **Now:** the full pipeline runs end to end on the standard library alone.
   Stage 1 is a real segmenter. Stages 2 and 3 use documented heuristics so the
-  demo produces real, inspectable results with zero setup.
-- **Planned:** the heuristics are baselines, not the intended engine. Stages 2
-  and 3 each expose a drop-in LLM-backed function (`align_claim_llm`,
-  `classify_claim_llm`) with the signature and return type already defined and a
-  `TODO` marking where the model call goes. Nothing external is required to run
-  the repo today.
+  demo produces real, inspectable results with zero setup. Stage 2 also has a
+  real, optional model backend — Cohere Rerank (see below) — behind the same
+  interface, off by default so nothing external is required to run the repo.
+- **Planned:** the heuristics are baselines, not the intended engine. Stage 3
+  still exposes a drop-in LLM-backed function (`classify_claim_llm`) with the
+  signature and return type already defined and a `TODO` marking where the model
+  call goes.
+
+### Optional Cohere Rerank backend (stage 2)
+
+The alignment stage — "which source passage supports this summary claim?" — is a
+query→passage relevance problem, which is exactly what a reranker does. Faithful
+ships an optional [Cohere Rerank](https://docs.cohere.com/docs/rerank) backend
+that swaps in for the lexical-overlap default without touching the pipeline:
+
+```python
+from faithful import run_pipeline
+from faithful.cohere_backend import make_rerank_aligner, DEFAULT_RERANK_THRESHOLD
+
+align_fn = make_rerank_aligner()          # reads CO_API_KEY / COHERE_API_KEY
+result = run_pipeline(
+    paper_text,
+    summary_text,
+    align_fn=align_fn,
+    threshold=DEFAULT_RERANK_THRESHOLD,    # rerank scores are on their own scale
+)
+```
+
+A cross-encoder sees paraphrase and numeric equivalence ("a third lower" ≈ "32%
+reduction") that lexical overlap misses. This needs the optional `cohere`
+package (`pip install cohere`) and an API key; without them, the default
+heuristic path runs unchanged. You can also inject any client that exposes a
+`rerank(...)` method via `make_rerank_aligner(client=...)`, which is how the
+test suite exercises the backend offline.
+
+Keeping alignment (find the passage) separate from classification (does the
+passage *actually* support the claim, or only superficially?) follows the
+distinction in Cohere's work on grounded-generation faithfulness — *Correctness
+is not Faithfulness in RAG Attributions*
+([arXiv:2412.18004](https://arxiv.org/abs/2412.18004)).
 
 ## Quickstart
 
@@ -171,7 +205,8 @@ faithful/
 ├── requirements.txt        only pytest; the pipeline uses the stdlib
 ├── faithful/               the package
 │   ├── extract.py          stage 1 — claim segmentation (implemented)
-│   ├── align.py            stage 2 — alignment (heuristic now, LLM TODO)
+│   ├── align.py            stage 2 — alignment (lexical-overlap heuristic)
+│   ├── cohere_backend.py   stage 2 — optional Cohere Rerank aligner
 │   ├── classify.py         stage 3 — classification (heuristic now, LLM TODO)
 │   └── pipeline.py         runs all three stages, returns structured results
 ├── examples/

@@ -6,3 +6,9 @@
 # The only listed dependency is the test runner. Install it if you want to run
 # the unit tests with `pytest` (the tests also run without it: see tests/).
 pytest>=7.4
+
+# Optional: the Cohere Rerank alignment backend (faithful/cohere_backend.py).
+# Not required for the core pipeline, the example, or the tests — install only
+# to run the reranker against the live Cohere API:
+#   pip install cohere
+# cohere>=5.13
