@@ -95,6 +95,47 @@ distinction in Cohere's work on grounded-generation faithfulness — *Correctnes
 is not Faithfulness in RAG Attributions*
 ([arXiv:2412.18004](https://arxiv.org/abs/2412.18004)).
 
+## Faithful as a trusted monitor (AI control)
+
+Faithfulness checking is an instance of the **AI control** problem studied by
+Redwood Research (*[AI Control: Improving Safety Despite Intentional
+Subversion](https://www.redwoodresearch.org/research/ai-control)*): how do you
+deploy an untrusted model safely by wrapping it in cheaper, trusted checks?
+
+| AI-control concept | In Faithful |
+| ------------------ | ----------- |
+| Untrusted policy | the AI **summarizer** — may add, drop, overstate, or contradict claims |
+| Attack | an **unfaithful summary** that changes what the paper says |
+| Trusted monitor | **Faithful** — cheap, deterministic, checks the summary against the *source* rather than trusting the summarizer |
+| Suspicion score | a summary-level score aggregated from the per-claim verdicts |
+| Audit | routing a summary to a human, with the source in hand |
+| Safety vs. usefulness @ audit budget | attacks caught vs. honest summaries passed, as the threshold sweeps |
+
+The [`faithful.monitor`](faithful/monitor.py) module turns per-claim verdicts
+into one **suspicion score** in `[0, 1]` (a noisy-OR over the problematic
+claims, so a single contradiction is enough to flag a summary while minor issues
+accumulate). A deployment protocol then *accepts* low-suspicion summaries and
+*audits* the most suspicious, subject to an audit budget.
+
+[`faithful.control_eval`](faithful/control_eval.py) runs the red-team /
+blue-team evaluation: a suite of faithful and unfaithful summaries over the same
+sources, scored by the monitor, with the **safety-vs-usefulness frontier** swept
+over the audit threshold. On the bundled synthetic suite the heuristic monitor
+catches 5 of 6 attacks with **zero false flags** on honest summaries — the one
+miss is a deliberately subtle magnitude overstatement ("dramatically shrank" vs.
+a "modest ~15% reduction") that a lexical monitor cannot see. That gap is the
+concrete case for the stronger Rerank / LLM monitor, whose frontier is measured
+the exact same way.
+
+```bash
+python examples/run_control_eval.py
+```
+
+These numbers describe the monitor's separation on a **small, hand-written
+suite** — a methodology demo, not a benchmark on real papers. As with the rest
+of the repo, no accuracy is claimed against real scientific summaries until a
+human-labeled set exists.
+
 ## Quickstart
 
 Requires Python 3.11+. The example itself needs **no dependencies and no API
@@ -208,11 +249,15 @@ faithful/
 │   ├── align.py            stage 2 — alignment (lexical-overlap heuristic)
 │   ├── cohere_backend.py   stage 2 — optional Cohere Rerank aligner
 │   ├── classify.py         stage 3 — classification (heuristic now, LLM TODO)
+│   ├── monitor.py          trusted-monitor layer — summary-level suspicion score
+│   ├── control_eval.py     red/blue-team safety-vs-usefulness evaluation
 │   └── pipeline.py         runs all three stages, returns structured results
 ├── examples/
 │   ├── sample_paper.txt    a short mock microbiome abstract
 │   ├── sample_summary.txt  a summary that overstates one claim, drops a caveat
-│   └── run_example.py      runs the pipeline and prints a per-claim report
+│   ├── run_example.py      runs the pipeline and prints a per-claim report
+│   ├── control_suite.jsonl synthetic faithful/unfaithful summaries for the eval
+│   └── run_control_eval.py runs the control evaluation and prints the frontier
 ├── web/index.html          dependency-free side-by-side viewer
 ├── data/README.md          the evaluation set and labeling schema (to be built)
 └── tests/test_extract.py   unit tests for segmentation

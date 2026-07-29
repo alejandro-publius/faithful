@@ -23,6 +23,13 @@ from __future__ import annotations
 from .align import Alignment, align_claim, align_claims
 from .classify import LABELS, Classification, classify_claim, classify_claims
 from .extract import Claim, extract_claims, split_sentences
+from .monitor import (
+    Contribution,
+    MonitorReport,
+    MonitorWeights,
+    monitor_summary,
+    score_result,
+)
 from .pipeline import ClaimResult, Omission, PipelineResult, run_pipeline
 
 __version__ = "0.1.0"
@@ -47,4 +54,10 @@ __all__ = [
     "Omission",
     "PipelineResult",
     "run_pipeline",
+    # monitor (AI-control layer)
+    "MonitorWeights",
+    "Contribution",
+    "MonitorReport",
+    "score_result",
+    "monitor_summary",
 ]
