@@ -44,12 +44,15 @@ import os
 from typing import Callable
 
 from .align import Alignment
+from .classify import LABELS, Classification
 from .extract import Claim
 
 __all__ = [
     "DEFAULT_RERANK_MODEL",
     "DEFAULT_RERANK_THRESHOLD",
+    "DEFAULT_COMMAND_MODEL",
     "make_rerank_aligner",
+    "make_command_classifier",
 ]
 
 # Current Cohere Rerank model. Configurable because Cohere rotates these: the
@@ -160,3 +163,121 @@ def make_rerank_aligner(
         )
 
     return align_claim_rerank
+
+
+# --------------------------------------------------------------------------- #
+# Stage 3 — grounded classification via Cohere Command.
+#
+# The rule-based classifier catches coarse cases (added "cures", flipped null
+# results, magnitude words, digit swaps) but is blind to what needs reading
+# comprehension: paraphrased numeric distortion ("a third" -> "in half"), scope
+# shifts phrased naturally, and subtle certainty inflation. A generation model
+# given the claim and its aligned source passage can label with a rationale.
+# This is the concrete implementation of the classify_claim_llm extension point.
+# --------------------------------------------------------------------------- #
+
+# Current Cohere Command chat model; configurable, as Cohere rotates these.
+DEFAULT_COMMAND_MODEL = "command-a-03-2025"
+
+ClassifyFn = Callable[[Claim, Alignment], Classification]
+
+_CLASSIFY_INSTRUCTIONS = (
+    "You check whether a one-sentence CLAIM from an AI summary is faithful to the "
+    "SOURCE passage it was matched to. Judge the claim ONLY against the source, "
+    "not outside knowledge. Choose exactly one label:\n"
+    "- supported: the source backs the claim as stated.\n"
+    "- overstated: the source is weaker/more hedged, or the claim inflates the "
+    "effect size, certainty, or scope (e.g. a mouse result stated for humans, or "
+    "'a third' reported as 'in half').\n"
+    "- contradicted: the source asserts the opposite (e.g. a null result reported "
+    "as a positive effect).\n"
+    "- unsupported: the source does not address the claim at all.\n"
+    "Respond with ONE line, exactly: LABEL | one-sentence reason."
+)
+
+
+def _extract_text(response: object) -> str:
+    """Pull the assistant text out of a Cohere v2 chat response, defensively."""
+    message = getattr(response, "message", None)
+    content = getattr(message, "content", None)
+    if isinstance(content, list) and content:
+        text = getattr(content[0], "text", None)
+        if text:
+            return str(text)
+    # Fallbacks for slightly different client shapes.
+    if isinstance(content, str):
+        return content
+    return str(getattr(response, "text", "") or "")
+
+
+def _parse_label(text: str) -> tuple[str, str]:
+    """Map a model reply to ``(label, rationale)``, tolerant of formatting."""
+    raw = text.strip()
+    label_part, _, reason_part = raw.partition("|")
+    lowered = label_part.lower()
+    for label in LABELS:
+        if label in lowered:
+            return label, (reason_part.strip() or raw)
+    # No recognised label in the first field: scan the whole reply.
+    lowered_all = raw.lower()
+    for label in LABELS:
+        if label in lowered_all:
+            return label, raw
+    # Unrecognisable reply: fail safe to "unsupported" so nothing is waved through.
+    return "unsupported", f"Unrecognised model reply: {raw!r}"
+
+
+def make_command_classifier(
+    client: object | None = None,
+    model: str = DEFAULT_COMMAND_MODEL,
+    api_key: str | None = None,
+) -> ClassifyFn:
+    """Build a Cohere Command classifier, a drop-in for :func:`classify_claim`.
+
+    The returned function has the ``(claim, alignment) -> Classification``
+    signature the pipeline calls, so it can be passed as ``classify_fn`` to
+    ``run_pipeline``. When alignment found no source passage the claim is
+    labelled ``unsupported`` without an API call (mirroring the rule-based
+    stage); otherwise the model judges the claim against the aligned passage.
+
+    Args:
+        client: A pre-configured Cohere v2 client (anything exposing
+            ``chat(model, messages)`` returning a response whose
+            ``message.content[0].text`` holds the reply). If ``None``, a real
+            client is built lazily. Tests inject an in-memory fake here.
+        model: Command chat model id. Defaults to :data:`DEFAULT_COMMAND_MODEL`.
+        api_key: Explicit key; falls back to ``CO_API_KEY`` / ``COHERE_API_KEY``.
+    """
+    method = f"cohere-command:{model}"
+
+    def classify_claim_command(claim: Claim, alignment: Alignment) -> Classification:
+        source = alignment.source_claim
+        if source is None:
+            return Classification(
+                claim=claim,
+                label="unsupported",
+                rationale=(
+                    "No source passage scored above the alignment threshold "
+                    f"(best overlap {alignment.score:.2f}); treated as an added claim."
+                ),
+                evidence=None,
+                method=method,
+            )
+
+        co = _resolve_client(client, api_key)
+        prompt = (
+            f"{_CLASSIFY_INSTRUCTIONS}\n\n"
+            f"SOURCE: {source.text}\n"
+            f"CLAIM: {claim.text}"
+        )
+        response = co.chat(model=model, messages=[{"role": "user", "content": prompt}])
+        label, rationale = _parse_label(_extract_text(response))
+        return Classification(
+            claim=claim,
+            label=label,
+            rationale=rationale,
+            evidence=source,
+            method=method,
+        )
+
+    return classify_claim_command

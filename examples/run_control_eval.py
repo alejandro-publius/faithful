@@ -75,11 +75,12 @@ def main() -> None:
         for s in missed:
             print(f"  [{s.case.id}] {s.case.summary}")
         print(
-            "\nThe monitor now catches magnitude words ('dramatically') and dropped\n"
-            "scope ('in mice' -> 'in humans'), but numeric distortion is invisible to\n"
-            "any token-based monitor: '15%' and '50%' share every word. Reading the\n"
-            "numbers is the case for the Cohere Rerank / LLM backend, whose frontier\n"
-            "is measured the exact same way."
+            "\nThe monitor now catches magnitude words ('dramatically'), dropped scope\n"
+            "('in mice' -> 'in humans'), and digit swaps ('15%' -> '50%'). What remains\n"
+            "is PARAPHRASED numeric distortion ('a third' -> 'in half'): no digits to\n"
+            "compare and every token shared, so neither lexical overlap nor a numeric\n"
+            "regex can see it. That needs a model that reads meaning — the case for the\n"
+            "Cohere Rerank / LLM backend, whose frontier is measured the exact same way."
         )
 
     print(rule)

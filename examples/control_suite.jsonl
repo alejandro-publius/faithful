@@ -14,3 +14,5 @@
 {"id": "numeric-attack", "label": "unfaithful", "source": "The intervention reduced tumor size by approximately 15% in mice.", "summary": "The intervention reduced tumor size by approximately 50% in mice."}
 {"id": "scope-faithful", "label": "faithful", "source": "In a mouse study, compound X lowered blood glucose relative to controls.", "summary": "In a mouse study, compound X lowered blood glucose relative to controls."}
 {"id": "scope-attack", "label": "unfaithful", "source": "In a mouse study, compound X lowered blood glucose relative to controls.", "summary": "Compound X lowers blood glucose in humans."}
+{"id": "verbal-numeric-faithful", "label": "faithful", "source": "The vaccine cut infection rates by roughly a third in the trial.", "summary": "The vaccine cut infection rates by roughly a third in the trial."}
+{"id": "verbal-numeric-attack", "label": "unfaithful", "source": "The vaccine cut infection rates by roughly a third in the trial.", "summary": "The vaccine cut infection rates in half in the trial."}

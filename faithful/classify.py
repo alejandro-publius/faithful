@@ -127,6 +127,52 @@ def _shared_content_word(a: str, b: str) -> str | None:
     return max(pool, key=len)
 
 
+# A number, optionally with a trailing percent sign: "15", "15%", "0.03", "1,200".
+_NUMBER_RE = re.compile(r"(\d[\d,]*(?:\.\d+)?)\s*(%?)")
+
+# Only flag a numeric change once it is clearly material, to stay away from
+# rounding and incidental counts. Tuned as a heuristic knob, not a calibration.
+_NUMERIC_INFLATION_RATIO = 1.2
+
+
+def _numbers(text: str) -> list[float]:
+    """Parse the numeric values in ``text`` (percent sign stripped)."""
+    out: list[float] = []
+    for value, _pct in _NUMBER_RE.findall(text):
+        try:
+            out.append(float(value.replace(",", "")))
+        except ValueError:  # pragma: no cover - regex already constrains this
+            continue
+    return out
+
+
+def _numeric_inflation(claim_text: str, source_text: str) -> tuple[float, float] | None:
+    """Detect the summary inflating a number the aligned source states smaller.
+
+    Returns ``(claim_value, source_value)`` when the claim asserts a value
+    materially larger than the largest value in the source and that value does
+    not already appear in the source (e.g. "~15%" in the source becomes "~50%"
+    in the summary). Deflation and matching numbers are not flagged; this is a
+    targeted check for the effect-size inflation the data schema lists under
+    ``overstated``, not general numeric reasoning (see the module TODO).
+    """
+    claim_nums = _numbers(claim_text)
+    source_nums = _numbers(source_text)
+    if not claim_nums or not source_nums:
+        return None
+
+    source_max = max(source_nums)
+    if source_max <= 0:
+        return None
+    # A claim value that appears (about) in the source is consistent, not inflated.
+    for c in claim_nums:
+        if any(abs(c - s) <= 1e-9 or (s and abs(c - s) / s <= 0.05) for s in source_nums):
+            continue
+        if c > source_max * _NUMERIC_INFLATION_RATIO:
+            return (c, source_max)
+    return None
+
+
 def classify_claim(claim: Claim, alignment: Alignment) -> Classification:
     """Classify one summary claim given its :class:`Alignment` (rule-based).
 
@@ -134,8 +180,9 @@ def classify_claim(claim: Claim, alignment: Alignment) -> Classification:
         1. No aligned source passage        -> ``unsupported``.
         2. Negation polarity mismatch on a
            shared topic                     -> ``contradicted``.
-        3. Claim adds strength the source
-           does not carry                   -> ``overstated``.
+        3. Claim adds strength/intensity or
+           inflates a numeric effect size
+           the source does not carry        -> ``overstated``.
         4. Otherwise                        -> ``supported``.
     """
     source = alignment.source_claim
@@ -201,6 +248,20 @@ def classify_claim(claim: Claim, alignment: Alignment) -> Classification:
             evidence=source,
         )
 
+    # 3b. Summary inflates a numeric effect size the source states smaller.
+    inflation = _numeric_inflation(claim.text, source.text)
+    if inflation is not None:
+        claim_val, source_val = inflation
+        return Classification(
+            claim=claim,
+            label="overstated",
+            rationale=(
+                f"Summary reports a larger magnitude ({claim_val:g}) than the "
+                f"source ({source_val:g}) for the same finding."
+            ),
+            evidence=source,
+        )
+
     # 4. Nothing flagged -> supported.
     return Classification(
         claim=claim,
@@ -224,14 +285,15 @@ def classify_claims(
 
 
 # --------------------------------------------------------------------------- #
-# TODO (extension point): LLM-backed classification.
+# Extension point: LLM-backed classification.
 #
 # The rules above catch coarse cases (dropped hedges, added "cures", flipped
-# null results) but miss subtle overstatement, scope shifts (mouse -> human),
-# and numeric distortion. A model given the claim + aligned passage can label
-# with evidence and a rationale. Wire a model call in here and return the same
-# Classification type; the pipeline already accepts any function with this
-# signature. No external service is required for the repo to run.
+# null results, magnitude words, digit swaps) but miss what needs reading
+# comprehension — paraphrased numeric distortion ("a third" -> "in half") and
+# subtle certainty shifts. A concrete model backend for exactly this lives in
+# :func:`faithful.cohere_backend.make_command_classifier` (Cohere Command). The
+# generic stub below documents the provider-agnostic contract; any function with
+# this signature can be passed to :func:`faithful.run_pipeline` as ``classify_fn``.
 # --------------------------------------------------------------------------- #
 def classify_claim_llm(
     claim: Claim,
@@ -239,17 +301,22 @@ def classify_claim_llm(
     model: str = "claude-fable-5",
     client: object | None = None,
 ) -> Classification:
-    """Planned LLM-backed classifier (not yet implemented).
+    """Provider-agnostic LLM classifier stub (no default provider wired in).
 
     Intended contract: prompt a model with the summary claim and its aligned
     source passage, ask for one of :data:`LABELS` plus a one-sentence rationale,
-    and return a :class:`Classification` with ``method="llm"``. Drop-in
-    compatible with :func:`classify_claim`.
+    and return a :class:`Classification`. Drop-in compatible with
+    :func:`classify_claim`.
+
+    For a working implementation, use
+    :func:`faithful.cohere_backend.make_command_classifier`.
 
     Raises:
-        NotImplementedError: Always, until a backend is wired in.
+        NotImplementedError: Always — this generic stub has no provider; use a
+            concrete backend such as ``make_command_classifier``.
     """
     raise NotImplementedError(
-        "LLM-backed classification is a planned extension point. "
-        "Use classify_claim() for the dependency-free rule-based path."
+        "This is the provider-agnostic stub. Use "
+        "faithful.cohere_backend.make_command_classifier() for a working model "
+        "backend, or classify_claim() for the dependency-free rule-based path."
     )

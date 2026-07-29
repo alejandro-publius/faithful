@@ -17,9 +17,12 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from faithful.align import Alignment
 from faithful.cohere_backend import (
+    DEFAULT_COMMAND_MODEL,
     DEFAULT_RERANK_MODEL,
     DEFAULT_RERANK_THRESHOLD,
+    make_command_classifier,
     make_rerank_aligner,
 )
 from faithful.extract import extract_claims
@@ -71,6 +74,30 @@ def _summary(text):
 
 def _sources(text):
     return extract_claims(text, origin="paper")
+
+
+# ---- In-memory fake Cohere v2 chat client -------------------------------- #
+
+class _FakeMessage:
+    def __init__(self, text):
+        self.content = [type("Block", (), {"text": text})()]
+
+
+class _FakeChatResponse:
+    def __init__(self, text):
+        self.message = _FakeMessage(text)
+
+
+class FakeCommandClient:
+    """Stand-in for cohere.ClientV2 chat, returning a scripted reply."""
+
+    def __init__(self, reply="supported | looks faithful"):
+        self.reply = reply
+        self.calls: list[dict] = []
+
+    def chat(self, model, messages):
+        self.calls.append({"model": model, "messages": messages})
+        return _FakeChatResponse(self.reply)
 
 
 # ---- Backend behaviour --------------------------------------------------- #
@@ -135,6 +162,51 @@ def test_rerank_aligner_plugs_into_run_pipeline():
     assert result.results[0].align_method.startswith("cohere-rerank:")
     # Classification provenance still comes from the default rule-based stage 3.
     assert result.results[0].classify_method == "rule-based"
+
+
+# ---- Command classifier behaviour ---------------------------------------- #
+
+def test_command_classifier_parses_label_and_records_method():
+    fake = FakeCommandClient(reply="overstated | claim says cures, source says associated")
+    classify = make_command_classifier(client=fake)
+    claim = _summary("The microbe cures inflammation.")
+    source = _sources("The microbe was associated with reduced inflammation.")[0]
+    result = classify(claim, Alignment(claim=claim, source_claim=source, score=0.5))
+    assert result.label == "overstated"
+    assert result.method == f"cohere-command:{DEFAULT_COMMAND_MODEL}"
+    assert result.evidence is source
+    # The prompt carries both the claim and the source passage.
+    sent = fake.calls[0]["messages"][0]["content"]
+    assert claim.text in sent and source.text in sent
+
+
+def test_command_classifier_short_circuits_without_source():
+    fake = FakeCommandClient()
+    classify = make_command_classifier(client=fake)
+    claim = _summary("Probiotics prevent cancer in humans.")
+    result = classify(claim, Alignment(claim=claim, source_claim=None, score=0.0))
+    assert result.label == "unsupported"
+    assert fake.calls == []  # no API call when there is nothing to compare against
+
+
+def test_command_classifier_fails_safe_on_unparseable_reply():
+    fake = FakeCommandClient(reply="I'm not sure how to answer that.")
+    classify = make_command_classifier(client=fake)
+    claim = _summary("The microbe reduced inflammation.")
+    source = _sources("The microbe reduced inflammation in mice.")[0]
+    result = classify(claim, Alignment(claim=claim, source_claim=source, score=0.5))
+    # An unrecognised reply must not be waved through as supported.
+    assert result.label == "unsupported"
+
+
+def test_command_classifier_plugs_into_run_pipeline():
+    fake = FakeCommandClient(reply="contradicted | source reports a null result")
+    classify = make_command_classifier(client=fake)
+    paper = "There was no significant change in body weight between the groups."
+    summary = "Treated mice gained significant body weight."
+    result = run_pipeline(paper, summary, classify_fn=classify)
+    assert result.results
+    assert all(r.classify_method.startswith("cohere-command:") for r in result.results)
 
 
 def test_missing_key_and_missing_client_raises_clearly():

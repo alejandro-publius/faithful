@@ -53,8 +53,8 @@ evidence is on-topic.
 synthetic suite of faithful and unfaithful summaries of the same sources
 (`examples/control_suite.jsonl`), sweeping the audit threshold to trace the
 safety-vs-usefulness frontier. On that suite the heuristic monitor reaches an
-operating point of **88% safety at 100% usefulness** with a 44% audit rate: it
-catches seven of eight attacks and flags **none** of the honest summaries.
+operating point of **89% safety at 100% usefulness** with a 44% audit rate: it
+catches eight of nine attacks and flags **none** of the honest summaries.
 
 This is a methodology demo on hand-written examples, not a benchmark on real
 papers — no accuracy is claimed against real scientific summaries until a
@@ -65,21 +65,23 @@ human-labeled set exists.
 The evaluation is only as strong as the attacks in it, so here is where the
 monitor is weak.
 
-1. **Numeric distortion defeats it completely.** "reduced tumor size by ~15%" and
-   "reduced tumor size by ~50%" share every token, so a lexical monitor scores
-   them identically. The suite includes this attack and the monitor misses it
-   (suspicion 0.00), pinned by a test so a future backend that closes it will
-   visibly flip. Reading the numbers requires a model, not token overlap — this
-   is the concrete case for the Cohere Rerank / LLM backend, whose frontier is
-   measured the exact same way.
+1. **Paraphrased numeric distortion still defeats it.** Digit swaps are handled
+   now — a numeric-consistency check flags "~15%" becoming "~50%" — but "cut
+   infection rates by a third" becoming "in half" carries no digits and shares
+   every token, so neither lexical overlap nor the numeric check can see it. The
+   suite includes this attack and the monitor misses it (suspicion 0.00), pinned
+   by a test so a model backend that closes it will visibly flip. Reading
+   paraphrased quantities requires a model, not tokens — the concrete case for
+   the Cohere Rerank / Command backend, whose frontier is measured the same way.
 
 2. **The red team is me.** A monitor evaluated only against attacks its author
-   thought of will look better than it is. The intensifier and dropped-scope
-   catches were added *after* seeing the misses they fix, which is exactly the
-   overfitting an independent red team exists to prevent. The reported frontier
-   should be read as an upper bound on this suite, not a generalization.
+   thought of will look better than it is. The intensifier, dropped-scope, and
+   digit-swap catches were each added *after* seeing the miss they fix — exactly
+   the overfitting an independent red team exists to prevent. Each patch closes
+   its example without evidence it generalizes; the reported frontier is an upper
+   bound on this suite, not a generalization.
 
-3. **The suite is tiny and in-distribution.** Twelve-to-sixteen short microbiome
+3. **The suite is tiny and in-distribution.** Eighteen short microbiome
    examples cannot estimate a real false-flag rate. On real abstracts the honest
    false-flag rate is the number that decides whether anyone tolerates the
    monitor, and I have not measured it.

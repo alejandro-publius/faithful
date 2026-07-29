@@ -42,7 +42,7 @@ and labeled.
 | ----- | ------------ | ------------------- |
 | **1. Extraction** | Split the source paper and the AI summary into discrete factual claims. | **Implemented.** Dependency-free, abbreviation- and decimal-aware sentence/claim segmentation ([`faithful/extract.py`](faithful/extract.py)). |
 | **2. Alignment** | For each summary claim, find the source passage that supports it — or determine there isn't one. | **Heuristic baseline + optional model backend.** IDF-weighted lexical overlap by default ([`faithful/align.py`](faithful/align.py)); an optional Cohere Rerank backend ([`faithful/cohere_backend.py`](faithful/cohere_backend.py)) drops in for real cross-encoder scoring. |
-| **3. Classification** | Label each summary claim `supported`, `unsupported`, `overstated`, or `contradicted`, using the aligned passage as evidence. | **Heuristic baseline.** Transparent rule-based placeholder ([`faithful/classify.py`](faithful/classify.py)). LLM-backed version is a marked extension point. |
+| **3. Classification** | Label each summary claim `supported`, `unsupported`, `overstated`, or `contradicted`, using the aligned passage as evidence. | **Heuristic baseline + optional model backend.** Rule-based cues plus a numeric-consistency check by default ([`faithful/classify.py`](faithful/classify.py)); an optional Cohere Command grounded classifier ([`faithful/cohere_backend.py`](faithful/cohere_backend.py)) drops in for reading-comprehension judgments. |
 
 A source-side pass also flags **omissions** — source claims (especially caveats
 and limitations) that no summary claim covers. Together the four labels plus
@@ -54,13 +54,13 @@ omissions cover what a summary can get wrong: what it **adds** (`unsupported`),
 
 - **Now:** the full pipeline runs end to end on the standard library alone.
   Stage 1 is a real segmenter. Stages 2 and 3 use documented heuristics so the
-  demo produces real, inspectable results with zero setup. Stage 2 also has a
-  real, optional model backend — Cohere Rerank (see below) — behind the same
-  interface, off by default so nothing external is required to run the repo.
-- **Planned:** the heuristics are baselines, not the intended engine. Stage 3
-  still exposes a drop-in LLM-backed function (`classify_claim_llm`) with the
-  signature and return type already defined and a `TODO` marking where the model
-  call goes.
+  demo produces real, inspectable results with zero setup. Both stages also have
+  real, optional model backends — Cohere Rerank for alignment and Cohere Command
+  for classification (see below) — behind the same interfaces, off by default so
+  nothing external is required to run the repo.
+- **Planned:** the heuristics are baselines, not the intended engine, and the
+  synthetic control eval shows exactly where they run out (paraphrased numeric
+  distortion) and where the model backends earn their place.
 
 ### Optional Cohere Rerank backend (stage 2)
 
@@ -88,6 +88,22 @@ package (`pip install cohere`) and an API key; without them, the default
 heuristic path runs unchanged. You can also inject any client that exposes a
 `rerank(...)` method via `make_rerank_aligner(client=...)`, which is how the
 test suite exercises the backend offline.
+
+Stage 3 has a matching optional backend — a **Cohere Command** grounded
+classifier that judges each claim against its aligned passage and returns one of
+the four labels with a rationale:
+
+```python
+from faithful.cohere_backend import make_command_classifier
+result = run_pipeline(paper_text, summary_text,
+                      classify_fn=make_command_classifier())
+```
+
+It short-circuits to `unsupported` when alignment found no passage (no wasted
+call), fails safe to `unsupported` on an unparseable reply, and is injectable
+the same way for offline tests. This is the concrete implementation of the
+`classify_claim_llm` extension point, for the reading-comprehension cases the
+rules cannot reach (see the control eval below).
 
 Keeping alignment (find the passage) separate from classification (does the
 passage *actually* support the claim, or only superficially?) follows the
@@ -121,18 +137,21 @@ accumulate). A deployment protocol then *accepts* low-suspicion summaries and
 blue-team evaluation: a suite of faithful and unfaithful summaries over the same
 sources, scored by the monitor, with the **safety-vs-usefulness frontier** swept
 over the audit threshold. On the bundled synthetic suite the heuristic monitor
-reaches **88% safety at 100% usefulness** (44% audit rate) — it catches seven of
-eight attacks and flags **none** of the honest summaries.
+reaches **89% safety at 100% usefulness** (44% audit rate) — it catches eight of
+nine attacks and flags **none** of the honest summaries.
 
 ```bash
 python examples/run_control_eval.py
 ```
 
-The one attack it misses is **numeric distortion**: "reduced tumor size by ~15%"
-vs. "~50%" share every token, so a lexical monitor scores them identically.
-Reading the numbers needs a model, not token overlap — the concrete case for the
-Rerank / LLM backend, whose frontier is measured the exact same way. A short
-threat-model writeup, including where the monitor can be defeated and what
+The one attack it misses is **paraphrased numeric distortion**: "cut infection
+rates by a third" vs. "in half" carries no digits and shares every token, so
+neither lexical overlap nor the numeric-consistency check can see it. (Digit
+swaps like "15%" → "50%", magnitude words, and dropped scope *are* caught — each
+was a red-team miss that a targeted rule then closed.) Reading paraphrased
+quantities needs a model, not tokens — the concrete case for the Rerank /
+Command backend, whose frontier is measured the exact same way. A short
+threat-model writeup, including where the monitor can still be defeated and what
 evidence would change the conclusion, is in
 [`docs/control.md`](docs/control.md).
 
@@ -264,6 +283,7 @@ faithful/
 │   ├── control_suite.jsonl synthetic faithful/unfaithful summaries for the eval
 │   └── run_control_eval.py runs the control evaluation and prints the frontier
 ├── web/index.html          dependency-free side-by-side viewer
+├── docs/control.md         threat model, monitor, and honest self-critique
 ├── data/README.md          the evaluation set and labeling schema (to be built)
 └── tests/test_extract.py   unit tests for segmentation
 ```

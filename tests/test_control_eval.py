@@ -81,14 +81,23 @@ def test_heuristic_monitor_separates_clear_cases_on_the_suite():
     assert sum(1 for v in attacks if v > 0.0) >= len(attacks) - 1
 
 
-def test_numeric_distortion_is_a_documented_blind_spot():
-    # A pure number swap (15% -> 50%) shares every token with the source, so a
-    # token-based monitor cannot see it. This test pins the limitation so a
-    # future model backend that closes it will visibly flip this expectation.
+def test_digit_swap_numeric_distortion_is_caught():
+    # A digit swap (15% -> 50%) is now caught by the numeric-consistency check,
+    # while its faithful (identical-number) twin is not flagged.
     result = evaluate(load_cases(SUITE))
     by_id = {s.case.id: s.suspicion for s in result.scored}
-    assert by_id["numeric-attack"] == 0.0
+    assert by_id["numeric-attack"] > 0.0
     assert by_id["numeric-faithful"] == 0.0
+
+
+def test_paraphrased_numeric_distortion_is_a_documented_blind_spot():
+    # "a third" -> "in half" carries no digits, so neither lexical overlap nor
+    # the numeric regex can see it. This pins the limitation so a model backend
+    # that closes it will visibly flip this expectation.
+    result = evaluate(load_cases(SUITE))
+    by_id = {s.case.id: s.suspicion for s in result.scored}
+    assert by_id["verbal-numeric-attack"] == 0.0
+    assert by_id["verbal-numeric-faithful"] == 0.0
 
 
 def _run_without_pytest() -> int:
