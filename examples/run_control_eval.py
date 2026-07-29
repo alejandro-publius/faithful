@@ -75,9 +75,11 @@ def main() -> None:
         for s in missed:
             print(f"  [{s.case.id}] {s.case.summary}")
         print(
-            "\nThese are the subtle overstatements (e.g. magnitude words like "
-            "'dramatically')\nthat a lexical monitor cannot see — the case for the "
-            "Cohere Rerank / LLM\nbackend, whose frontier can be measured the same way."
+            "\nThe monitor now catches magnitude words ('dramatically') and dropped\n"
+            "scope ('in mice' -> 'in humans'), but numeric distortion is invisible to\n"
+            "any token-based monitor: '15%' and '50%' share every word. Reading the\n"
+            "numbers is the case for the Cohere Rerank / LLM backend, whose frontier\n"
+            "is measured the exact same way."
         )
 
     print(rule)

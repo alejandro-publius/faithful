@@ -59,6 +59,17 @@ def test_classify_overstated_on_added_strength():
     assert result.label == "overstated"
 
 
+def test_classify_overstated_on_added_intensifier():
+    # A magnitude intensifier the source does not carry is overstatement, even
+    # with no causal verb ("modest ~15%" -> "dramatically").
+    claim = extract_claims("The intervention dramatically shrank tumor size.", origin="summary")[0]
+    source = extract_claims(
+        "The intervention reduced tumor size by approximately 15%, a modest effect.",
+        origin="paper")[0]
+    result = classify_claim(claim, Alignment(claim=claim, source_claim=source, score=0.5))
+    assert result.label == "overstated"
+
+
 def test_classify_contradicted_on_negation_mismatch():
     claim = extract_claims("Colonized mice gained body weight.", origin="summary")[0]
     source = extract_claims(

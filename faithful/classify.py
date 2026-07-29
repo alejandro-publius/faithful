@@ -48,6 +48,18 @@ _STRENGTH_CUES = {
     "unequivocally", "established", "demonstrates", "demonstrated",
 }
 
+# Intensity adverbs/adjectives that inflate the *magnitude* of an effect without
+# naming a stronger causal claim. Treated like strength cues: flagged only when
+# the summary uses one the aligned source does not, i.e. the summary turns a
+# measured effect into an emphatic one ("modest ~15% reduction" -> "dramatically
+# shrank"). This catches magnitude overstatement that carries no causal verb.
+_INTENSIFIER_CUES = {
+    "dramatically", "dramatic", "drastically", "drastic", "vastly", "vast",
+    "massively", "massive", "hugely", "huge", "enormously", "enormous",
+    "profoundly", "profound", "markedly", "sharply", "sharp", "substantially",
+    "substantial", "significantly", "remarkably", "remarkable", "greatly",
+}
+
 # Words that hedge or qualify a finding. When the source hedges and the summary
 # drops the hedge while asserting more, that is a signal of overstatement.
 _HEDGE_CUES = {
@@ -160,7 +172,9 @@ def classify_claim(claim: Claim, alignment: Alignment) -> Classification:
     # 3. Summary uses strength cues the source does not -> overstatement.
     claim_words = _words(claim.text)
     source_words = _words(source.text)
-    added_strength = (claim_words & _STRENGTH_CUES) - source_words
+    # Strength cues (causal/certainty) and intensifiers (magnitude) are both
+    # overstatement when the summary adds one the aligned source does not carry.
+    added_strength = (claim_words & (_STRENGTH_CUES | _INTENSIFIER_CUES)) - source_words
     source_hedges = source_words & _HEDGE_CUES
     claim_drops_hedge = bool(source_hedges - claim_words)
 

@@ -121,15 +121,20 @@ accumulate). A deployment protocol then *accepts* low-suspicion summaries and
 blue-team evaluation: a suite of faithful and unfaithful summaries over the same
 sources, scored by the monitor, with the **safety-vs-usefulness frontier** swept
 over the audit threshold. On the bundled synthetic suite the heuristic monitor
-catches 5 of 6 attacks with **zero false flags** on honest summaries — the one
-miss is a deliberately subtle magnitude overstatement ("dramatically shrank" vs.
-a "modest ~15% reduction") that a lexical monitor cannot see. That gap is the
-concrete case for the stronger Rerank / LLM monitor, whose frontier is measured
-the exact same way.
+reaches **88% safety at 100% usefulness** (44% audit rate) — it catches seven of
+eight attacks and flags **none** of the honest summaries.
 
 ```bash
 python examples/run_control_eval.py
 ```
+
+The one attack it misses is **numeric distortion**: "reduced tumor size by ~15%"
+vs. "~50%" share every token, so a lexical monitor scores them identically.
+Reading the numbers needs a model, not token overlap — the concrete case for the
+Rerank / LLM backend, whose frontier is measured the exact same way. A short
+threat-model writeup, including where the monitor can be defeated and what
+evidence would change the conclusion, is in
+[`docs/control.md`](docs/control.md).
 
 These numbers describe the monitor's separation on a **small, hand-written
 suite** — a methodology demo, not a benchmark on real papers. As with the rest
