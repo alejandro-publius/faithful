@@ -2,7 +2,7 @@
 
 **Faithful checks AI-generated summaries of scientific papers against the source, and flags every claim the summary adds, drops, overstates, or contradicts.**
 
-> Status: early prototype · Python 3.11+ · MIT licensed · runs with no API keys
+> Status: early prototype · Python 3.9+ · MIT licensed · runs with no API keys
 
 ---
 
@@ -162,8 +162,8 @@ human-labeled set exists.
 
 ## Quickstart
 
-Requires Python 3.11+. The example itself needs **no dependencies and no API
-keys** — it runs on the standard library.
+Requires Python 3.9+ (developed and tested on 3.9). The example itself needs
+**no dependencies and no API keys** — it runs on the standard library.
 
 ```bash
 # 1. Clone and enter the repo
@@ -271,8 +271,8 @@ faithful/
 ├── faithful/               the package
 │   ├── extract.py          stage 1 — claim segmentation (implemented)
 │   ├── align.py            stage 2 — alignment (lexical-overlap heuristic)
-│   ├── cohere_backend.py   stage 2 — optional Cohere Rerank aligner
-│   ├── classify.py         stage 3 — classification (heuristic now, LLM TODO)
+│   ├── cohere_backend.py   optional Cohere backends (Rerank aligner, Command classifier)
+│   ├── classify.py         stage 3 — rule cues + numeric-consistency check
 │   ├── monitor.py          trusted-monitor layer — summary-level suspicion score
 │   ├── control_eval.py     red/blue-team safety-vs-usefulness evaluation
 │   └── pipeline.py         runs all three stages, returns structured results
@@ -285,7 +285,8 @@ faithful/
 ├── web/index.html          dependency-free side-by-side viewer
 ├── docs/control.md         threat model, monitor, and honest self-critique
 ├── data/README.md          the evaluation set and labeling schema (to be built)
-└── tests/test_extract.py   unit tests for segmentation
+└── tests/                  49 tests; the model backends are tested offline
+                            against an in-memory fake client
 ```
 
 ## Roadmap (90-day build)
@@ -310,11 +311,23 @@ A focused first quarter to get from this scaffold to a validated prototype.
 This is an **early prototype and scaffold.** It runs end to end and produces
 real, inspectable output on the sample, but:
 
-- Stages 2 and 3 currently use simple heuristics, not the intended LLM engine.
-- There is **no evaluation set and no accuracy or benchmark numbers yet** — and
-  none are reported anywhere in this repo. Building the labeled evaluation set is
-  the first milestone (see the roadmap). We will not publish performance claims
-  until there is ground truth to measure against.
+- Stages 2 and 3 default to simple heuristics. The optional Cohere backends
+  (Rerank, Command) are real and tested offline against a fake client, but they
+  have **not** been run against a labeled set, so nothing is known about how
+  they perform.
+- There is **no evaluation set on real papers and no accuracy or benchmark
+  numbers.** Building the labeled set is the first milestone (see the roadmap).
+  No performance claim will be published until there is ground truth to measure
+  against.
+- The one place numbers *do* appear is the control evaluation (89% safety at
+  100% usefulness). Those describe the monitor's separation on a **small suite
+  of summaries I wrote myself, designed to contain the failure modes I was
+  looking for.** They measure the method's plumbing, not its accuracy, and they
+  are an upper bound even on that suite — I was both the red team and the blue
+  team, and each catch was added after seeing the case it fixes. Treat them as a
+  worked demonstration of how the frontier would be measured, not as evidence
+  the monitor works on real papers. [`docs/control.md`](docs/control.md) states
+  the limits in full.
 
 ## Team
 

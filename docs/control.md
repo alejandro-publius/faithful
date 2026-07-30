@@ -74,6 +74,15 @@ monitor is weak.
    paraphrased quantities requires a model, not tokens — the concrete case for
    the Cohere Rerank / Command backend, whose frontier is measured the same way.
 
+   That check is also deliberately narrow: it compares **percentages only**. A
+   bare number in an abstract can be a sample size, a p-value, a dose, or a
+   year, and comparing those against each other yields confident nonsense — an
+   early version flagged an honest summary that merely added a cohort size
+   ("15% of 200 mice") as reporting "a larger magnitude (200) than the source
+   (15)". Narrow and precise beats broad and wrong here, because a false flag on
+   an honest summary costs usefulness, which is the axis that decides whether
+   anyone keeps the monitor switched on.
+
 2. **The red team is me.** A monitor evaluated only against attacks its author
    thought of will look better than it is. The intensifier, dropped-scope, and
    digit-swap catches were each added *after* seeing the miss they fix — exactly

@@ -127,18 +127,29 @@ def _shared_content_word(a: str, b: str) -> str | None:
     return max(pool, key=len)
 
 
-# A number, optionally with a trailing percent sign: "15", "15%", "0.03", "1,200".
-_NUMBER_RE = re.compile(r"(\d[\d,]*(?:\.\d+)?)\s*(%?)")
+# A percentage: "15%", "0.5 %", "32 percent". Deliberately restricted to
+# percentages rather than every number in the sentence. A bare number can be a
+# sample size, a p-value, a year, or a dose — comparing those against each other
+# produces confident nonsense ("summary reports a larger magnitude (200) than the
+# source (15)" when the summary merely added a cohort size). Percentages are the
+# one quantity in an abstract that reliably denotes an effect size, so this check
+# stays narrow and precise instead of broad and wrong. Reading quantities in
+# general is the model backend's job (see the TODO at the bottom of this module).
+_PERCENT_RE = re.compile(r"(\d[\d,]*(?:\.\d+)?)\s*(?:%|percent\b)", re.IGNORECASE)
 
-# Only flag a numeric change once it is clearly material, to stay away from
-# rounding and incidental counts. Tuned as a heuristic knob, not a calibration.
+# Only flag a change once it is clearly material, to stay away from rounding.
+# Tuned as a heuristic knob, not a calibration.
 _NUMERIC_INFLATION_RATIO = 1.2
 
+# Two percentages within this relative distance count as the same figure, so
+# "approximately 15%" and "15%" do not read as a discrepancy.
+_NUMERIC_MATCH_TOLERANCE = 0.05
 
-def _numbers(text: str) -> list[float]:
-    """Parse the numeric values in ``text`` (percent sign stripped)."""
+
+def _percentages(text: str) -> list[float]:
+    """Parse the percentage values in ``text`` (the ``%``/``percent`` stripped)."""
     out: list[float] = []
-    for value, _pct in _NUMBER_RE.findall(text):
+    for value in _PERCENT_RE.findall(text):
         try:
             out.append(float(value.replace(",", "")))
         except ValueError:  # pragma: no cover - regex already constrains this
@@ -147,17 +158,21 @@ def _numbers(text: str) -> list[float]:
 
 
 def _numeric_inflation(claim_text: str, source_text: str) -> tuple[float, float] | None:
-    """Detect the summary inflating a number the aligned source states smaller.
+    """Detect the summary inflating a percentage the aligned source states smaller.
 
-    Returns ``(claim_value, source_value)`` when the claim asserts a value
-    materially larger than the largest value in the source and that value does
-    not already appear in the source (e.g. "~15%" in the source becomes "~50%"
-    in the summary). Deflation and matching numbers are not flagged; this is a
-    targeted check for the effect-size inflation the data schema lists under
-    ``overstated``, not general numeric reasoning (see the module TODO).
+    Returns ``(claim_value, source_value)`` when the claim states a percentage
+    materially larger than the largest percentage in the source, and that value
+    does not already appear in the source (e.g. the source's "approximately 15%"
+    becoming "50%" in the summary).
+
+    Scope is deliberately narrow. Only percentages are compared (see
+    :data:`_PERCENT_RE`), deflation is not flagged, and near-equal figures are
+    treated as the same number. This targets the effect-size inflation the data
+    schema lists under ``overstated``; it is not general numeric reasoning, and
+    it cannot see a paraphrased quantity ("a third" -> "in half") at all.
     """
-    claim_nums = _numbers(claim_text)
-    source_nums = _numbers(source_text)
+    claim_nums = _percentages(claim_text)
+    source_nums = _percentages(source_text)
     if not claim_nums or not source_nums:
         return None
 
@@ -166,7 +181,10 @@ def _numeric_inflation(claim_text: str, source_text: str) -> tuple[float, float]
         return None
     # A claim value that appears (about) in the source is consistent, not inflated.
     for c in claim_nums:
-        if any(abs(c - s) <= 1e-9 or (s and abs(c - s) / s <= 0.05) for s in source_nums):
+        if any(
+            abs(c - s) <= 1e-9 or (s and abs(c - s) / s <= _NUMERIC_MATCH_TOLERANCE)
+            for s in source_nums
+        ):
             continue
         if c > source_max * _NUMERIC_INFLATION_RATIO:
             return (c, source_max)

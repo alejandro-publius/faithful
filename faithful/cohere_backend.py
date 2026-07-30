@@ -41,6 +41,7 @@ Typical use::
 from __future__ import annotations
 
 import os
+import re
 from typing import Callable
 
 from .align import Alignment
@@ -210,19 +211,35 @@ def _extract_text(response: object) -> str:
     return str(getattr(response, "text", "") or "")
 
 
+def _find_label(text: str) -> str | None:
+    """Return the first label appearing in ``text`` as a whole word, else None.
+
+    Whole-word matching is essential, not cosmetic: ``"supported"`` is a
+    substring of ``"unsupported"``, so a plain ``in`` test would read the reply
+    "unsupported | ..." as *supported* and wave an added claim through as
+    faithful — a silent failure in the least safe direction.
+    """
+    lowered = text.lower()
+    best: tuple[int, str] | None = None
+    for label in LABELS:
+        match = re.search(rf"\b{re.escape(label)}\b", lowered)
+        if match and (best is None or match.start() < best[0]):
+            best = (match.start(), label)
+    return best[1] if best else None
+
+
 def _parse_label(text: str) -> tuple[str, str]:
     """Map a model reply to ``(label, rationale)``, tolerant of formatting."""
     raw = text.strip()
     label_part, _, reason_part = raw.partition("|")
-    lowered = label_part.lower()
-    for label in LABELS:
-        if label in lowered:
-            return label, (reason_part.strip() or raw)
+
+    label = _find_label(label_part)
+    if label is not None:
+        return label, (reason_part.strip() or raw)
     # No recognised label in the first field: scan the whole reply.
-    lowered_all = raw.lower()
-    for label in LABELS:
-        if label in lowered_all:
-            return label, raw
+    label = _find_label(raw)
+    if label is not None:
+        return label, raw
     # Unrecognisable reply: fail safe to "unsupported" so nothing is waved through.
     return "unsupported", f"Unrecognised model reply: {raw!r}"
 

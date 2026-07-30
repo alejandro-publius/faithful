@@ -199,6 +199,29 @@ def test_command_classifier_fails_safe_on_unparseable_reply():
     assert result.label == "unsupported"
 
 
+def test_command_classifier_round_trips_every_label():
+    # Regression: "supported" is a substring of "unsupported", so substring
+    # matching silently reported an added claim as faithful — the least safe
+    # direction. Every label must survive the round trip as a whole word.
+    claim = _summary("The microbe reduced inflammation.")
+    source = _sources("The microbe reduced inflammation in mice.")[0]
+    alignment = Alignment(claim=claim, source_claim=source, score=0.5)
+    for label in ("supported", "unsupported", "overstated", "contradicted"):
+        fake = FakeCommandClient(reply=f"{label} | because reasons")
+        classify = make_command_classifier(client=fake)
+        assert classify(claim, alignment).label == label, f"{label} misparsed"
+
+
+def test_command_classifier_tolerates_formatting_noise():
+    claim = _summary("The microbe reduced inflammation.")
+    source = _sources("The microbe reduced inflammation in mice.")[0]
+    alignment = Alignment(claim=claim, source_claim=source, score=0.5)
+    for reply in ("Label: UNSUPPORTED | added claim", "  unsupported|added claim  "):
+        fake = FakeCommandClient(reply=reply)
+        classify = make_command_classifier(client=fake)
+        assert classify(claim, alignment).label == "unsupported", f"misparsed {reply!r}"
+
+
 def test_command_classifier_plugs_into_run_pipeline():
     fake = FakeCommandClient(reply="contradicted | source reports a null result")
     classify = make_command_classifier(client=fake)

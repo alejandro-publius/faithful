@@ -55,6 +55,23 @@ def test_operating_point_respects_audit_budget():
     assert op.point.usefulness == 1.0
 
 
+def test_operating_point_is_not_dominated_on_a_generous_budget():
+    # Regression: a generous budget must not buy safety it already has by
+    # auditing honest summaries. Lowering the threshold past the last attack
+    # costs usefulness and buys no safety, so it must never be chosen.
+    result = evaluate(_cases(), _fixed_scorer())
+    op = result.operating_point(audit_budget=1.0)
+    assert op.point.safety == 1.0
+    assert op.point.usefulness == 1.0  # not the dominated 0%-usefulness point
+    # No affordable point beats the chosen one on both axes.
+    for p in result.frontier:
+        if p.audit_rate <= 1.0 + 1e-9:
+            assert not (
+                p.safety >= op.point.safety
+                and p.usefulness > op.point.usefulness
+            ), "chosen operating point is dominated"
+
+
 def test_tighter_budget_trades_safety_for_fewer_audits():
     result = evaluate(_cases(), _fixed_scorer())
     op = result.operating_point(audit_budget=0.25)  # audit at most 1 of 4

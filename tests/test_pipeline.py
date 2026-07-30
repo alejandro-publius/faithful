@@ -70,6 +70,31 @@ def test_classify_overstated_on_added_intensifier():
     assert result.label == "overstated"
 
 
+def test_classify_overstated_on_inflated_percentage():
+    claim = extract_claims("The intervention reduced tumor size by 50%.", origin="summary")[0]
+    source = extract_claims(
+        "The intervention reduced tumor size by approximately 15%.", origin="paper")[0]
+    result = classify_claim(claim, Alignment(claim=claim, source_claim=source, score=0.6))
+    assert result.label == "overstated"
+
+
+def test_numeric_check_ignores_non_effect_size_numbers():
+    # Only percentages are compared. A bare number can be a sample size, a
+    # p-value, or a year; comparing those produces confident nonsense, so an
+    # honest summary that merely adds a cohort size must not be flagged.
+    from faithful.classify import _numeric_inflation
+
+    assert _numeric_inflation("15% of 200 mice responded", "15% of mice responded") is None
+    assert _numeric_inflation("p = 0.03 was seen", "p = 0.001 was seen") is None
+    assert _numeric_inflation("in 2020, 15% responded", "in 2019, 15% responded") is None
+    # Deflation and equal figures are not inflation either.
+    assert _numeric_inflation("reduced by 5%", "reduced by approximately 15%") is None
+    assert _numeric_inflation("reduced by 15%", "reduced by approximately 15%") is None
+    # The real catch still fires, including "percent" spelled out.
+    assert _numeric_inflation("reduced by 50%", "reduced by approximately 15%") is not None
+    assert _numeric_inflation("reduced by 50 percent", "reduced by 15 percent") is not None
+
+
 def test_classify_contradicted_on_negation_mismatch():
     claim = extract_claims("Colonized mice gained body weight.", origin="summary")[0]
     source = extract_claims(
