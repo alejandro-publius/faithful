@@ -20,11 +20,11 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from faithful.align import (
     DEFAULT_THRESHOLD,
+    _inverse_document_frequency,
     align_claim,
     overlap_score,
     tokenize,
     weighted_overlap_score,
-    _inverse_document_frequency,
 )
 from faithful.extract import Claim
 

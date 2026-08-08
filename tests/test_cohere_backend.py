@@ -28,7 +28,6 @@ from faithful.cohere_backend import (
 from faithful.extract import extract_claims
 from faithful.pipeline import run_pipeline
 
-
 # ---- In-memory fake Cohere v2 client ------------------------------------- #
 
 class _FakeResult:
