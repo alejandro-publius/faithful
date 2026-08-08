@@ -1,0 +1,31 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        # 3.9 is the documented floor; 3.12 is the development version.
+        python-version: ["3.9", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install
+        run: pip install pytest ruff
+      - name: Lint
+        # `ruff format --check` is deliberately not gated: the repo predates the
+        # formatter and a blanket reformat would bury real changes. Lint rules
+        # (including import order and unused names) are enforced.
+        run: ruff check faithful/ tests/ examples/
+      - name: Test
+        run: pytest tests/ -q
+      - name: Example runs end to end
+        # The bundled example is the quickstart; if it breaks, the README lies.
+        run: python examples/run_example.py
