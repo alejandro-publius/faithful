@@ -2,9 +2,50 @@
 
 **Faithful checks AI-generated summaries of scientific papers against the source, and flags every claim the summary adds, drops, overstates, or contradicts.**
 
+[![CI](https://github.com/alejandro-publius/faithful/actions/workflows/ci.yml/badge.svg)](https://github.com/alejandro-publius/faithful/actions/workflows/ci.yml)
+
 > Status: early prototype · Python 3.9+ · MIT licensed · runs with no API keys
 
 ---
+
+## What Faithful measures
+
+The failure class is **unfaithful summarization**: an AI summary that changes
+what its source says while sounding like a neutral retelling. Faithful
+decomposes that into claim-level verdicts, so "the summary is wrong" becomes
+*which claim, which way, against which passage*:
+
+| Verdict | The summary... | Example failure |
+| ------- | -------------- | --------------- |
+| `unsupported` | **adds** a claim the source never makes | "a proven probiotic treatment" appears from nowhere |
+| omission | **drops** a source claim, especially a caveat | "not yet validated in humans" vanishes |
+| `overstated` | **strengthens** a hedged finding | "was associated with" → "cures"; "15%" → "50%" |
+| `contradicted` | **reverses** the source | "no significant change" → "a significant increase" |
+| `supported` | restates the source faithfully | — |
+
+**How scoring works.** A three-stage pipeline produces the verdicts: source and
+summary are segmented into discrete claims; each summary claim is aligned to
+its best supporting source passage (IDF-weighted lexical overlap by default, an
+optional Cohere Rerank backend for real paraphrase matching); the pair is then
+classified into one of the four labels, each with a human-readable rationale
+and the evidence passage attached. A monitor layer aggregates per-claim
+verdicts into one summary-level **suspicion score** in `[0, 1]` (noisy-OR, so a
+single contradiction flags a summary while small issues accumulate), and a
+control-style evaluation sweeps the audit threshold to trace the
+**safety-vs-usefulness frontier** — attacks caught vs. honest summaries passed
+at a given audit budget.
+
+**What a run outputs.** `python examples/run_example.py` prints per-claim
+verdicts with rationales and evidence, the dropped caveats, and label counts
+(full output [below](#expected-output)). `python examples/run_control_eval.py`
+prints the monitor's frontier over a bundled red-team suite. Scoring behavior
+is pinned by characterization tests (`tests/test_align.py`,
+`tests/test_classify.py`), so a change to any lexicon, threshold, or decision
+rule fails a test instead of silently relabeling claims.
+
+Everything below runs on the standard library with no keys; the numbers it
+prints describe a hand-written demo suite, not validated accuracy — see the
+[status and honesty note](#status-and-honesty-note).
 
 ## The problem
 
@@ -167,7 +208,7 @@ Requires Python 3.9+ (developed and tested on 3.9). The example itself needs
 
 ```bash
 # 1. Clone and enter the repo
-git clone <your-fork-url> faithful
+git clone https://github.com/alejandro-publius/faithful.git
 cd faithful
 
 # 2. Create and activate a virtual environment
@@ -261,6 +302,13 @@ viewer is a hard-coded sample mirroring the example above.
 pytest                         # or: python tests/test_extract.py
 ```
 
+Every test runs offline. `tests/test_align.py` and `tests/test_classify.py`
+are characterization tests over the scoring stages: they pin the current
+labels, rationales, decision order, and thresholds — including three quirks
+explicitly marked as quirks — so any change to scoring is a visible test
+failure rather than a silent relabeling. CI runs the suite plus the example on
+Python 3.9 and 3.12.
+
 ## Project layout
 
 ```
@@ -285,8 +333,10 @@ faithful/
 ├── web/index.html          dependency-free side-by-side viewer
 ├── docs/control.md         threat model, monitor, and honest self-critique
 ├── data/README.md          the evaluation set and labeling schema (to be built)
-└── tests/                  49 tests; the model backends are tested offline
-                            against an in-memory fake client
+└── tests/                  72 tests; scoring behavior is pinned by
+                            characterization tests (test_align, test_classify),
+                            and the model backends are tested offline against an
+                            in-memory fake client
 ```
 
 ## Roadmap (90-day build)
