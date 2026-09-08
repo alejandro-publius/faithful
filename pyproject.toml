@@ -1,0 +1,62 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "faithful"
+version = "0.1.0"
+description = "Checks AI-generated summaries of scientific papers against the source and flags every claim the summary adds, drops, overstates, or contradicts."
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.9"
+authors = [
+    { name = "Alex Velazquez" },
+    { name = "Rachel Selbrede" },
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Text Processing :: Linguistic",
+]
+
+# The core pipeline (the `faithful` package) runs on the Python standard
+# library alone -- nothing is required to `import faithful` or run the bundled
+# example. See requirements.txt and the README Quickstart for the same
+# statement in prose.
+dependencies = []
+
+[project.optional-dependencies]
+# The test runner. Install with `pip install -e .[test]`.
+test = ["pytest>=7.4"]
+# The optional Cohere Rerank/Command backends (faithful/cohere_backend.py).
+# Not required for the core pipeline, the example, or the tests -- install
+# only to run the reranker/classifier against the live Cohere API.
+cohere = ["cohere>=5.13"]
+
+[project.urls]
+Homepage = "https://github.com/alejandro-publius/faithful"
+Repository = "https://github.com/alejandro-publius/faithful"
+
+[tool.setuptools]
+packages = ["faithful"]
+
+# --- ruff --------------------------------------------------------------- #
+# Inlined here (formerly a standalone ruff.toml) so packaging and tooling
+# config live in one file. Pin the rule set explicitly rather than inheriting
+# whatever the installed ruff version happens to default to. CI installs ruff
+# from PyPI, so without this a new ruff release silently widens the rules and
+# breaks a build that touched none of the code -- which is exactly what
+# happened on 0.16.2.
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+# ruff's classic default (pycodestyle errors + pyflakes), plus import sorting,
+# plus E402 so the deliberate "import after sys.path setup" noqa directives in
+# examples/ are load-bearing rather than dead.
+select = ["E4", "E7", "E9", "F", "I", "E402"]
