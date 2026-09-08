@@ -3,10 +3,16 @@
 **Faithful checks AI-generated summaries of scientific papers against the source, and flags every claim the summary adds, drops, overstates, or contradicts.**
 
 [![CI](https://github.com/alejandro-publius/faithful/actions/workflows/ci.yml/badge.svg)](https://github.com/alejandro-publius/faithful/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Python 3.9+](https://img.shields.io/badge/python-3.9%2B-blue.svg)](pyproject.toml)
 
 > Status: early prototype · Python 3.9+ · MIT licensed · runs with no API keys
 
 ---
+
+![Faithful's side-by-side claim viewer, showing a source abstract on the left and a color-coded AI summary on the right](docs/web-viewer.png)
+
+*The bundled [`web/index.html`](web/index.html) viewer, opened directly in a browser with no server or build step, showing the same catches as the [example run](#expected-output) below.*
 
 ## What Faithful measures
 
@@ -333,7 +339,7 @@ faithful/
 ├── web/index.html          dependency-free side-by-side viewer
 ├── docs/control.md         threat model, monitor, and honest self-critique
 ├── data/README.md          the evaluation set and labeling schema (to be built)
-└── tests/                  72 tests; scoring behavior is pinned by
+└── tests/                  77 tests; scoring behavior is pinned by
                             characterization tests (test_align, test_classify),
                             and the model backends are tested offline against an
                             in-memory fake client
