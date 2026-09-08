@@ -1,0 +1,16 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+title: "Faithful"
+abstract: >-
+  Checks AI-generated summaries of scientific papers against the source, and
+  flags every claim the summary adds, drops, overstates, or contradicts.
+version: 0.1.0
+date-released: "2026-09-04"
+license: MIT
+repository-code: "https://github.com/alejandro-publius/faithful"
+type: software
+authors:
+  - family-names: "Velazquez"
+    given-names: "Alex"
+  - family-names: "Selbrede"
+    given-names: "Rachel"

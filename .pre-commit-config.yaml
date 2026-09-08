@@ -1,0 +1,13 @@
+# Local mirror of the CI lint step (ruff check, no formatter -- see
+# pyproject.toml [tool.ruff] and .github/workflows/ci.yml for why). Pinned to
+# the same ruff version CI installs so a local pass means a CI pass.
+#
+#   pip install pre-commit
+#   pre-commit install
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.16.2
+    hooks:
+      - id: ruff
+        name: ruff check
+        args: [--fix]
