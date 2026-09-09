@@ -114,10 +114,17 @@ def split_sentences(text: str) -> list[tuple[str, int, int]]:
 
 
 def _looks_like_claim(text: str) -> bool:
-    """Filter out fragments that are not real claims (headings, stray tokens)."""
-    if len(text) < 15:
-        return False
-    # Require at least a few alphabetic words.
+    """Filter out fragments that are not real claims (headings, stray tokens).
+
+    Judged by word count alone, not raw character length. A short fragment
+    like "Yes." (one word) is filtered; a short sentence with a subject, a
+    verb, and a predicate -- "It was fatal." (13 characters, three words) --
+    is not. A length-only cutoff dropped claims like that before they ever
+    reached alignment or classification, which is worse than misclassifying
+    them: a dropped claim is invisible in the output, with no rationale and
+    no trace, so nothing downstream (a caller, a reviewer, this tool's own
+    "unsupported"/"contradicted" labels) ever gets a chance to catch it.
+    """
     words = re.findall(r"[A-Za-z]+", text)
     return len(words) >= 3
 

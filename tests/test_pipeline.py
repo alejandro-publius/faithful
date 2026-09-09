@@ -121,6 +121,28 @@ def test_pipeline_on_empty_inputs():
     assert result.counts() == {}
 
 
+def test_pipeline_does_not_silently_drop_a_short_contradicting_claim():
+    # The most dangerous error this tool can make is not misclassifying a
+    # claim but never seeing it at all: extraction's fragment filter used to
+    # require 15+ characters, which drops short-but-real claims before they
+    # ever reach alignment or classification. "It was fatal." (13 chars)
+    # directly contradicts the paper's "It was not fatal in any patient." --
+    # exactly the kind of safety-relevant claim a caller relies on this tool
+    # to surface, not erase.
+    paper = "The compound was well tolerated overall. It was not fatal in any patient."
+    summary = "The compound was well tolerated. It was fatal."
+
+    result = run_pipeline(paper, summary)
+    claim_texts = [r.claim.text for r in result.results]
+    assert "It was fatal." in claim_texts, (
+        "the contradicting claim was dropped before classification and is "
+        f"invisible in the output; only saw {claim_texts!r}"
+    )
+
+    fatal_result = next(r for r in result.results if r.claim.text == "It was fatal.")
+    assert fatal_result.label == "contradicted"
+
+
 def test_pipeline_on_bundled_sample_catches_each_failure_mode():
     with open(os.path.join(EXAMPLES, "sample_paper.txt"), encoding="utf-8") as f:
         paper = f.read()
