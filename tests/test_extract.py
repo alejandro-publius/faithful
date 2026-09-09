@@ -60,6 +60,19 @@ def test_filters_short_fragments():
     assert len(claims) == 1
 
 
+def test_keeps_short_but_real_claims():
+    # A short sentence can still be a genuine, substantive claim -- "It was
+    # fatal." is 13 characters, one below the length filter this module used
+    # to apply on top of the word-count check. Silently dropping a claim like
+    # this at extraction is worse than misclassifying it: it never reaches
+    # alignment or classification, so nothing downstream ever sees it. Unlike
+    # "Yes." (one word, no subject or predicate), this has a subject, a verb,
+    # and a predicate, so the word-count check alone is enough to keep it.
+    text = "The compound was well tolerated. It was fatal."
+    claims = extract_claims(text, origin="summary")
+    assert [c.text for c in claims] == ["The compound was well tolerated.", "It was fatal."]
+
+
 def test_does_not_split_on_multiword_abbreviation():
     # "et al." and "e.g." must not end a sentence.
     assert len([s for s, _, _ in split_sentences(
