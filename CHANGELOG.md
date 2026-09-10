@@ -8,6 +8,17 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 ## [Unreleased]
 
 ### Added
+
+- `contradicted` now covers a **reversed direction of effect**, not only a
+  negation flip. "increased" -> "decreased" carries no negation on either
+  side, so the negation-polarity rule could not see it: the monitor scored
+  such a summary suspicion **0.000** and accepted it at every audit budget.
+  Gated on the two sentences being near-identical once direction words are
+  stripped, and valence words ("improved"/"worsened") are excluded, so
+  unrelated findings that merely point opposite ways are not flagged.
+- Three red-team cases for the failure class the suite did not contain:
+  `direction-attack`, `comparative-attack`, `zero-baseline-attack`, each with
+  a faithful counterpart.
 - `pyproject.toml` carrying packaging metadata, dependency extras (`test`,
   `cohere`), and the ruff configuration (inlined from the former `ruff.toml`,
   which is now removed). `pip install -e .[test]` works.
@@ -18,6 +29,26 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 - `docs/web-viewer.png`: a screenshot of the bundled side-by-side viewer,
   referenced near the top of the README.
 - `CITATION.cff` and this changelog.
+
+### Fixed
+
+- The README said the suite is 77 tests; it was 79 before this release's
+  additions. Corrected to 88, and a new test now derives the number by
+  collecting the suite in a subprocess and compares it against every docs line
+  stating a test count, so the next added test either updates the README or
+  reds CI.
+- Percentage inflation against a **0% baseline** was invisible. A source
+  stating 0% against a summary stating 40% is the starkest inflation there
+  is, but `_numeric_inflation` returned early on `source_max <= 0` before
+  reaching the ratio test that already handled it correctly.
+
+### Changed
+
+- Control-eval frontier re-measured on the extended suite: **92% safety at
+  100% usefulness**, 46% audit rate, eleven of twelve attacks caught (was
+  89% / 44% / eight of nine on the smaller suite). On the extended suite the
+  monitor scored 67% safety before these two fixes. Usefulness stays at 100%:
+  no honest summary is newly flagged.
 
 ## [0.1.0] - 2026-09-04
 

@@ -53,8 +53,8 @@ evidence is on-topic.
 synthetic suite of faithful and unfaithful summaries of the same sources
 (`examples/control_suite.jsonl`), sweeping the audit threshold to trace the
 safety-vs-usefulness frontier. On that suite the heuristic monitor reaches an
-operating point of **89% safety at 100% usefulness** with a 44% audit rate: it
-catches eight of nine attacks and flags **none** of the honest summaries.
+operating point of **92% safety at 100% usefulness** with a 46% audit rate: it
+catches eleven of twelve attacks and flags **none** of the honest summaries.
 
 This is a methodology demo on hand-written examples, not a benchmark on real
 papers — no accuracy is claimed against real scientific summaries until a
@@ -81,16 +81,26 @@ monitor is weak.
    ("15% of 200 mice") as reporting "a larger magnitude (200) than the source
    (15)". Narrow and precise beats broad and wrong here, because a false flag on
    an honest summary costs usefulness, which is the axis that decides whether
-   anyone keeps the monitor switched on.
+   anyone keeps the monitor switched on. The direction check carries the same
+   restraint for the same reason: valence words ("improved", "worsened") are
+   excluded, because whether "inflammation improved" is up or down depends on
+   the noun, and it gates on the two sentences being near-identical once the
+   direction words are stripped, so two unrelated findings that merely point
+   opposite ways are not called a contradiction.
 
 2. **The red team is me.** A monitor evaluated only against attacks its author
-   thought of will look better than it is. The intensifier, dropped-scope, and
-   digit-swap catches were each added *after* seeing the miss they fix — exactly
-   the overfitting an independent red team exists to prevent. Each patch closes
+   thought of will look better than it is. The intensifier, dropped-scope,
+   digit-swap and direction-reversal catches were each added *after* seeing the
+   miss they fix — exactly the overfitting an independent red team exists to
+   prevent. The direction-reversal case is the sharpest illustration: until it
+   was added the suite contained no reversed effect at all, so the monitor
+   scored "increased" → "decreased" at suspicion **0.000** and the reported
+   frontier said nothing about it. A whole failure class was invisible because
+   the suite did not name it, which is the general form of this weakness. Each patch closes
    its example without evidence it generalizes; the reported frontier is an upper
    bound on this suite, not a generalization.
 
-3. **The suite is tiny and in-distribution.** Eighteen short microbiome
+3. **The suite is tiny and in-distribution.** Twenty-four short microbiome
    examples cannot estimate a real false-flag rate. On real abstracts the honest
    false-flag rate is the number that decides whether anyone tolerates the
    monitor, and I have not measured it.
