@@ -46,10 +46,11 @@ def _collected_test_count() -> int:
         text=True,
         timeout=300,
         env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
+        check=False,
     )
     if proc.returncode != 0:
         pytest.fail(f"collection failed:\n{proc.stdout[-2000:]}\n{proc.stderr[-2000:]}")
-    match = re.search(r"^(\d+) tests? collected", proc.stdout, re.M)
+    match = re.search(r"^(\d+) tests? collected", proc.stdout, re.MULTILINE)
     if match is None:
         pytest.fail(f"could not read a collected count from:\n{proc.stdout[-2000:]}")
     return int(match.group(1))
