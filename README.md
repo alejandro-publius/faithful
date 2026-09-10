@@ -340,7 +340,7 @@ faithful/
 ├── web/index.html          dependency-free side-by-side viewer
 ├── docs/control.md         threat model, monitor, and honest self-critique
 ├── data/README.md          the evaluation set and labeling schema (to be built)
-└── tests/                  77 tests; scoring behavior is pinned by
+└── tests/                  88 tests; scoring behavior is pinned by
                             characterization tests (test_align, test_classify),
                             and the model backends are tested offline against an
                             in-memory fake client

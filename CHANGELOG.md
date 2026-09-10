@@ -32,6 +32,11 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ### Fixed
 
+- The README said the suite is 77 tests; it was 79 before this release's
+  additions. Corrected to 88, and a new test now derives the number by
+  collecting the suite in a subprocess and compares it against every docs line
+  stating a test count, so the next added test either updates the README or
+  reds CI.
 - Percentage inflation against a **0% baseline** was invisible. A source
   stating 0% against a summary stating 40% is the starkest inflation there
   is, but `_numeric_inflation` returned early on `source_max <= 0` before
