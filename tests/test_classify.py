@@ -201,3 +201,87 @@ if __name__ == "__main__":  # tiny runner so the file works without pytest
                 failures += 1
                 print(f"FAIL {name}: {exc}")
     raise SystemExit(1 if failures else 0)
+
+
+# ---- Direction-of-effect reversal (contradiction with no negation) -------- #
+
+def test_direction_reversal_is_contradicted():
+    """A reversed direction is the source asserting the opposite, which is what
+    `contradicted` means -- but it carries no negation on either side, so the
+    negation-polarity rule cannot reach it. Before this rule the monitor scored
+    such a summary suspicion 0.000, i.e. accepted it at every audit budget."""
+    result = _classify(
+        "In this cohort, butyrate supplementation decreased colonic inflammation in treated mice.",
+        "In this cohort, butyrate supplementation increased colonic inflammation in treated mice.",
+    )
+    assert result.label == "contradicted"
+    assert "direction" in result.rationale.lower()
+
+
+def test_comparative_reversal_is_contradicted():
+    result = _classify(
+        "Mortality was lower in the treatment arm than in the control arm.",
+        "Mortality was higher in the treatment arm than in the control arm.",
+    )
+    assert result.label == "contradicted"
+
+
+def test_same_direction_is_not_contradicted():
+    result = _classify(
+        "Mortality was higher in the treatment arm than in the control arm.",
+        "Mortality was greater in the treatment arm than in the control arm.",
+    )
+    assert result.label != "contradicted"
+
+
+def test_opposite_directions_on_different_findings_are_not_contradicted():
+    """Precision guard. Two unrelated findings that happen to point opposite
+    ways must not be called a contradiction -- a false `contradicted` is the
+    expensive error for a monitor, paid in usefulness."""
+    result = _classify(
+        "Butyrate production rose in treated mice.",
+        "Colonic inflammation fell in treated mice.",
+    )
+    assert result.label != "contradicted"
+
+
+def test_mixed_direction_sentence_yields_no_direction_verdict():
+    """A sentence pointing both ways at once has no single direction, so it
+    cannot drive a direction contradiction."""
+    result = _classify(
+        "Treatment reduced mortality and increased survival in treated mice.",
+        "Treatment increased mortality and reduced survival in treated mice.",
+    )
+    assert result.label != "contradicted"
+
+
+def test_valence_words_do_not_drive_a_direction_verdict():
+    """'improved'/'worsened' are deliberately excluded: whether they mean up or
+    down depends on the noun ('inflammation improved'), and guessing produces
+    confident false contradictions."""
+    result = _classify(
+        "Cognitive scores worsened in the treated group relative to controls.",
+        "Cognitive scores improved in the treated group relative to controls.",
+    )
+    assert result.label != "contradicted"
+
+
+# ---- Zero-baseline percentage inflation ---------------------------------- #
+
+def test_zero_percent_source_against_a_positive_claim_is_inflation():
+    """A source stating 0% and a summary stating 40% is the starkest inflation
+    there is. The old `source_max <= 0` early return made exactly that case
+    invisible."""
+    result = _classify(
+        "Tumour regression occurred in 40% of treated mice.",
+        "Tumour regression occurred in 0% of treated mice.",
+    )
+    assert result.label == "overstated"
+
+
+def test_zero_percent_on_both_sides_is_not_inflation():
+    result = _classify(
+        "Tumour regression occurred in 0% of treated mice.",
+        "Tumour regression occurred in 0% of treated mice.",
+    )
+    assert result.label != "overstated"

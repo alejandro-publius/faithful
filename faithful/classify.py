@@ -127,6 +127,67 @@ def _shared_content_word(a: str, b: str) -> str | None:
     return max(pool, key=len)
 
 
+# Directional cues. A summary that reverses the direction of a reported effect
+# is asserting the opposite of the source -- the definition of `contradicted` --
+# but it can do so with no negation anywhere, so the negation-polarity rule
+# cannot see it. "increased" -> "decreased" scored suspicion 0.000 before this.
+#
+# Deliberately restricted to unambiguously comparative words. Valence words
+# ("improved", "worsened") are excluded on purpose: whether "inflammation
+# improved" is an increase or a decrease depends on the noun, and guessing
+# produces confident false contradictions on honest summaries -- the expensive
+# error for a monitor, since it is paid in usefulness. Bare "up"/"down" and
+# "more"/"less" are excluded for the same reason ("up to", "more than 50%").
+_INCREASE_CUES = {
+    "increase", "increased", "increases", "increasing", "higher", "greater",
+    "elevated", "elevate", "elevates", "rose", "rise", "rises", "rising",
+    "risen", "upregulated", "up-regulated", "gain", "gained", "gains",
+    "augmented", "enhanced", "raise", "raised", "raises", "raising",
+    "doubled", "tripled", "boosted",
+}
+
+_DECREASE_CUES = {
+    "decrease", "decreased", "decreases", "decreasing", "lower", "lowered",
+    "reduce", "reduced", "reduces", "reduction", "reductions", "fell", "fall",
+    "falls", "falling", "decline", "declined", "declines", "diminished",
+    "diminish", "suppressed", "suppress", "downregulated", "down-regulated",
+    "shrank", "shrunk", "fewer", "loss", "lost", "attenuated", "halved",
+}
+
+# A direction mismatch only means a contradiction when the two sentences are
+# otherwise saying the same thing. Strip the direction words and require the
+# rest to overlap this much, so "inflammation fell" vs "butyrate rose" -- two
+# different findings that merely point opposite ways -- is not called a
+# contradiction. A true reversal scores ~1.0 here.
+_DIRECTION_REVERSAL_MIN_OVERLAP = 0.6
+
+
+def _direction(text: str) -> str | None:
+    """Return ``"up"``/``"down"`` when ``text`` reports one clear direction.
+
+    Returns ``None`` when the text carries no directional cue, or carries both
+    (a mixed sentence like "raised survival and reduced mortality"), where the
+    direction of the sentence as a whole is not a single thing.
+    """
+    words = _words(text)
+    up = bool(words & _INCREASE_CUES)
+    down = bool(words & _DECREASE_CUES)
+    if up == down:
+        return None
+    return "up" if up else "down"
+
+
+def _non_directional_overlap(a: str, b: str) -> float:
+    """Jaccard overlap of ``a`` and ``b`` with the direction words removed."""
+    from .align import tokenize
+
+    ta = tokenize(a) - _INCREASE_CUES - _DECREASE_CUES
+    tb = tokenize(b) - _INCREASE_CUES - _DECREASE_CUES
+    if not ta or not tb:
+        return 0.0
+    return len(ta & tb) / len(ta | tb)
+
+
 # A percentage: "15%", "0.5 %", "32 percent". Deliberately restricted to
 # percentages rather than every number in the sentence. A bare number can be a
 # sample size, a p-value, a year, or a dose — comparing those against each other
@@ -177,8 +238,12 @@ def _numeric_inflation(claim_text: str, source_text: str) -> tuple[float, float]
         return None
 
     source_max = max(source_nums)
-    if source_max <= 0:
-        return None
+    # No early return when source_max is 0. A source stating 0% against a
+    # summary stating 40% is the starkest inflation there is, and the ratio
+    # test below already handles it correctly (c > 0 * 1.2 is c > 0); bailing
+    # out here made exactly that case invisible. Claim values that match a
+    # source value are still skipped by the tolerance check below, so a
+    # summary that also says 0% is not flagged.
     # A claim value that appears (about) in the source is consistent, not inflated.
     for c in claim_nums:
         if any(
@@ -198,6 +263,8 @@ def classify_claim(claim: Claim, alignment: Alignment) -> Classification:
         1. No aligned source passage        -> ``unsupported``.
         2. Negation polarity mismatch on a
            shared topic                     -> ``contradicted``.
+        2b. Direction of effect reversed on
+           an otherwise matching finding    -> ``contradicted``.
         3. Claim adds strength/intensity or
            inflates a numeric effect size
            the source does not carry        -> ``overstated``.
@@ -230,6 +297,30 @@ def classify_claim(claim: Claim, alignment: Alignment) -> Classification:
                 f"Negation mismatch on '{shared}': source "
                 f"{'negates' if source_neg else 'asserts'} it while the summary "
                 f"{'negates' if claim_neg else 'asserts'} it."
+            ),
+            evidence=source,
+        )
+
+    # 2b. Same finding, opposite direction of effect -> contradiction. This
+    # needs no negation on either side, so rule 2 above cannot reach it.
+    claim_direction = _direction(claim.text)
+    source_direction = _direction(source.text)
+    if (
+        claim_direction is not None
+        and source_direction is not None
+        and claim_direction != source_direction
+        and shared is not None
+        and _non_directional_overlap(claim.text, source.text)
+        >= _DIRECTION_REVERSAL_MIN_OVERLAP
+    ):
+        return Classification(
+            claim=claim,
+            label="contradicted",
+            rationale=(
+                f"Direction mismatch on '{shared}': the source reports it going "
+                f"{'up' if source_direction == 'up' else 'down'} while the "
+                f"summary reports it going "
+                f"{'up' if claim_direction == 'up' else 'down'}."
             ),
             evidence=source,
         )

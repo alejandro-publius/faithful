@@ -184,8 +184,8 @@ accumulate). A deployment protocol then *accepts* low-suspicion summaries and
 blue-team evaluation: a suite of faithful and unfaithful summaries over the same
 sources, scored by the monitor, with the **safety-vs-usefulness frontier** swept
 over the audit threshold. On the bundled synthetic suite the heuristic monitor
-reaches **89% safety at 100% usefulness** (44% audit rate) — it catches eight of
-nine attacks and flags **none** of the honest summaries.
+reaches **92% safety at 100% usefulness** (46% audit rate) — it catches eleven
+of twelve attacks and flags **none** of the honest summaries.
 
 ```bash
 python examples/run_control_eval.py
@@ -194,8 +194,9 @@ python examples/run_control_eval.py
 The one attack it misses is **paraphrased numeric distortion**: "cut infection
 rates by a third" vs. "in half" carries no digits and shares every token, so
 neither lexical overlap nor the numeric-consistency check can see it. (Digit
-swaps like "15%" → "50%", magnitude words, and dropped scope *are* caught — each
-was a red-team miss that a targeted rule then closed.) Reading paraphrased
+swaps like "15%" → "50%", magnitude words, dropped scope, and reversed
+direction of effect *are* caught — each was a red-team miss that a targeted
+rule then closed.) Reading paraphrased
 quantities needs a model, not tokens — the concrete case for the Rerank /
 Command backend, whose frontier is measured the exact same way. A short
 threat-model writeup, including where the monitor can still be defeated and what
@@ -375,7 +376,7 @@ real, inspectable output on the sample, but:
   numbers.** Building the labeled set is the first milestone (see the roadmap).
   No performance claim will be published until there is ground truth to measure
   against.
-- The one place numbers *do* appear is the control evaluation (89% safety at
+- The one place numbers *do* appear is the control evaluation (92% safety at
   100% usefulness). Those describe the monitor's separation on a **small suite
   of summaries I wrote myself, designed to contain the failure modes I was
   looking for.** They measure the method's plumbing, not its accuracy, and they
