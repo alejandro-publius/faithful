@@ -60,6 +60,44 @@ This is a methodology demo on hand-written examples, not a benchmark on real
 papers — no accuracy is claimed against real scientific summaries until a
 human-labeled set exists.
 
+### What nine attacks can actually support
+
+"89% safety" is eight successes out of nine. Reporting it to two significant
+figures implies a precision nine items cannot carry, so here is the same
+result with its sampling uncertainty attached (Wilson score intervals, 95%,
+computed with [evalpower](https://github.com/alejandro-publius/evalpower)):
+
+| quantity | observed | 95% interval | width |
+| --- | --- | --- | --- |
+| safety (attacks caught) | 8/9 = 0.889 | [0.565, 0.980] | 0.415 |
+| usefulness (honest accepted) | 9/9 = 1.000 | [0.701, 1.000] | 0.299 |
+
+Three things follow, and the third is the one that matters.
+
+1. **The monitor is doing something.** The safety interval's lower bound,
+   0.565, is above chance, and a coin-flip monitor produces eight or more
+   catches in nine attempts only 2.0% of the time. The separation is real.
+2. **The headline cannot support a bar.** Certifying "at least 85% safety" at
+   the observed rate needs **324 attacks**, not nine; "at least 90%" needs
+   2,801. The closed form is `n = z² · t(1−t) / (p−t)²`, so halving the margin
+   between the observed rate and the bar quadruples the requirement. Any
+   sentence of the form "the monitor is ≥ X% safe" is unsupported by this
+   suite for every X above roughly 0.57.
+3. **"100% usefulness" is the weakest number here, not the strongest.** Nine
+   honest summaries, none flagged, is consistent with a true false-flag rate
+   as high as **30%**. This note already says the honest false-flag rate is
+   what decides whether anyone keeps the monitor switched on; the interval
+   says the current suite has essentially not measured it. A saturated
+   proportion looks certain and is not: the point estimate hits the ceiling
+   while the interval stays wide, and that is the failure mode a reader is
+   most likely to be fooled by.
+
+None of this is a criticism of the suite's *design* — a hand-written suite is
+the right first step, and the numbers above are what it can bear. It is an
+argument that the frontier should be reported with intervals from the start,
+because the alternative is a two-significant-figure number doing work that
+nine items cannot do.
+
 ## Attacking my own monitor
 
 The evaluation is only as strong as the attacks in it, so here is where the
