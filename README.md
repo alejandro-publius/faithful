@@ -185,7 +185,12 @@ blue-team evaluation: a suite of faithful and unfaithful summaries over the same
 sources, scored by the monitor, with the **safety-vs-usefulness frontier** swept
 over the audit threshold. On the bundled synthetic suite the heuristic monitor
 reaches **89% safety at 100% usefulness** (44% audit rate) — it catches eight of
-nine attacks and flags **none** of the honest summaries.
+nine attacks and flags **none** of the honest summaries. Eight of nine is a
+95% interval of [0.565, 0.980], and nine honest summaries with no false flag
+is consistent with a false-flag rate up to 30%: enough to show the monitor
+separates attacks from honest work, nowhere near enough to certify a rate.
+[`docs/control.md`](docs/control.md#what-nine-attacks-can-actually-support)
+does that arithmetic.
 
 ```bash
 python examples/run_control_eval.py

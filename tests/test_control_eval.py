@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import math
 import os
+import re
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -133,3 +135,76 @@ def _run_without_pytest() -> int:
 
 if __name__ == "__main__":
     sys.exit(_run_without_pytest())
+
+
+# --------------------------------------------------------------------------
+# The intervals docs/control.md quotes around the headline numbers.
+#
+# The point of that section is that eight-of-nine cannot carry two
+# significant figures. These keep the section's arithmetic tied to the suite
+# that produced it: add or remove a case and the documented intervals stop
+# matching, loudly, instead of quietly becoming wrong.
+# --------------------------------------------------------------------------
+
+
+def _wilson(successes, n, z=1.959963984540054):
+    """Wilson score interval - the inversion of the score test. Closed form,
+    so this is arithmetic rather than a second opinion; it is checked against
+    a hand-computed value below."""
+    if n == 0:
+        return (0.0, 1.0)
+    p = successes / n
+    denom = 1.0 + z * z / n
+    centre = (p + z * z / (2 * n)) / denom
+    half = z * math.sqrt(p * (1 - p) / n + z * z / (4 * n * n)) / denom
+    return (max(0.0, centre - half), min(1.0, centre + half))
+
+
+def test_wilson_matches_a_hand_computed_value():
+    # 8/9 at 95%: worked through by hand, and independently reproduced by
+    # statsmodels' proportion_confint(8, 9, method="wilson").
+    low, high = _wilson(8, 9)
+    assert round(low, 3) == 0.565
+    assert round(high, 3) == 0.980
+
+
+def test_documented_intervals_match_the_bundled_suite():
+    cases = load_cases(SUITE)
+    attacks = [c for c in cases if c.unfaithful]
+    honest = [c for c in cases if not c.unfaithful]
+    assert (len(attacks), len(honest)) == (9, 9), (
+        "the control suite changed; docs/control.md's interval table and the "
+        "README's summary of it are now stale"
+    )
+
+    doc = open(
+        os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                     "docs", "control.md")
+    ).read()
+    section = doc.split("### What nine attacks can actually support", 1)
+    assert len(section) == 2, "the interval section is gone from docs/control.md"
+
+    for successes, n in ((8, 9), (9, 9)):
+        low, high = _wilson(successes, n)
+        quoted = f"[{low:.3f}, {high:.3f}]"
+        assert quoted in section[1], f"{successes}/{n} interval {quoted} is not the one documented"
+
+
+def test_documented_sample_sizes_match_the_closed_form():
+    # n = z^2 * t(1 - t) / (p - t)^2, the inversion of the same score test.
+    z2 = 1.959963984540054 ** 2
+    p = 8 / 9
+    for bar, documented in ((0.85, 324), (0.90, 2801)):
+        needed = math.ceil(z2 * bar * (1 - bar) / (p - bar) ** 2)
+        assert needed == documented, f"bar {bar}: closed form gives {needed}, docs say {documented}"
+
+
+def test_documented_coin_flip_probability_is_right():
+    # P(>= 8 of 9 | p = 0.5), the claim that the separation is not chance.
+    tail = sum(math.comb(9, k) for k in (8, 9)) / 2 ** 9
+    doc = open(
+        os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                     "docs", "control.md")
+    ).read()
+    assert f"{tail * 100:.1f}%" in doc, f"docs should quote {tail * 100:.1f}%"
+    assert re.search(r"\b324\b", doc) and re.search(r"2,801", doc)
